@@ -8,20 +8,25 @@
   </head>
   <body>
     <main class="game-shell">
-      <h1>ASCII Horde</h1>
+      <header class="title-block">
+        <h1>ASCII Horde</h1>
+        <div id="build" class="build">Build: clean-rebuild-1</div>
+      </header>
 
       <section class="hud" aria-live="polite">
         <span>HP: <strong id="hp">10</strong>/<strong id="max-hp">10</strong></span>
         <span>Shots: <strong id="shots">3/3</strong></span>
         <span>Turn: <strong id="turn">0</strong></span>
         <span>Kills: <strong id="kills">0</strong></span>
-              </section>
+        <span>Enemies: <strong id="enemy-count">0</strong></span>
+      </section>
 
       <section class="grid-wrap" aria-label="ASCII dungeon">
         <pre id="grid" class="grid" role="img" aria-label="40 by 30 ASCII grid"></pre>
+
         <div id="chest-overlay" class="chest-overlay hidden" aria-live="assertive">
           <div class="chest-modal">
-            <p id="chest-text"></p>
+            <p id="chest-text">Found: Item</p>
             <div class="chest-actions">
               <button id="take-btn" class="btn" type="button">Take</button>
               <button id="leave-btn" class="btn" type="button">Leave</button>
@@ -41,13 +46,19 @@
           <button data-dir="right" class="btn dir right" type="button">Right</button>
           <button data-dir="down" class="btn dir down" type="button">Down</button>
         </div>
+
         <div class="actions">
           <button id="wait-btn" class="btn" type="button">Wait</button>
           <button id="reload-btn" class="btn" type="button">Reload</button>
           <button id="restart-btn" class="btn" type="button">Restart</button>
         </div>
       </section>
+
+      <section class="legend">
+        <p><strong>@</strong> player · <strong>H/h</strong> enemy · <strong>#</strong> wall · <strong>D</strong> door · <strong>C</strong> chest · <strong>E</strong> exit · <strong>.</strong> unseen</p>
+      </section>
     </main>
+
     <script src="main.js"></script>
   </body>
 </html>
