@@ -1,7 +1,9 @@
-const WIDTH = 32;
-const HEIGHT = 18;
+const VIEW_WIDTH = 32;
+const VIEW_HEIGHT = 18;
+const MAP_WIDTH = 72;
+const MAP_HEIGHT = 40;
 const MAX_LOG_LINES = 4;
-const VIS_RADIUS = 7;
+const VIS_RADIUS = 8;
 
 const BASE_MAX_HP = 10;
 const BASE_CLIP_SIZE = 6;
@@ -9,7 +11,7 @@ const BASE_RESERVE_AMMO = 12;
 const BASE_SHOT_DAMAGE = 2;
 const ENEMY_MAX_HP = 5;
 const ENEMY_DAMAGE = 1;
-const BASE_ENEMY_CAP = 5;
+const BASE_ENEMY_CAP = 7;
 const MISS_CHANCE = 0.08;
 
 const COLORS = ["red", "blue", "yellow", "green"];
@@ -28,7 +30,7 @@ let game;
 
 const key = (x, y) => `${x},${y}`;
 const samePos = (a, b) => a.x === b.x && a.y === b.y;
-const inBounds = (x, y) => x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT;
+const inBounds = (x, y) => x >= 0 && y >= 0 && x < MAP_WIDTH && y < MAP_HEIGHT;
 const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 const titleColor = (color) => color.charAt(0).toUpperCase() + color.slice(1);
 
@@ -112,7 +114,6 @@ function startLevel(carry) {
   game = {
     level: carry.level,
     totalKills: carry.totalKills || 0,
-    map,
     walls: map.walls,
     floors: map.floors,
     rooms: map.rooms,
@@ -142,7 +143,7 @@ function startLevel(carry) {
   };
 
   recalcVisibility();
-  spawnEnemies(Math.min(3 + game.level, enemyCap()));
+  spawnEnemies(Math.min(4 + game.level, enemyCap()));
   recalcVisibility();
   closeChestOverlay();
   closeLevelOverlay();
@@ -155,37 +156,46 @@ function structuredCloneInventory(items) {
 }
 
 function generateDungeon() {
-  for (let attempt = 0; attempt < 40; attempt++) {
+  for (let attempt = 0; attempt < 60; attempt++) {
     const walls = new Set();
     const floors = new Set();
 
-    for (let y = 0; y < HEIGHT; y++) {
-      for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        walls.add(key(x, y));
+      }
     }
 
     const rooms = [];
     const connections = [];
+
     const firstRoom = {
-      x: randInt(3, 9),
-      y: randInt(3, 8),
-      w: randInt(5, 7),
-      h: randInt(4, 5)
+      x: randInt(28, 36),
+      y: randInt(15, 22),
+      w: randInt(6, 10),
+      h: randInt(4, 7)
     };
     finishRoom(firstRoom);
     rooms.push(firstRoom);
     carveRoom(firstRoom, walls, floors);
 
-    for (let i = 0; i < 12; i++) {
+    let failureStreak = 0;
+
+    while (rooms.length < 22 && failureStreak < 180) {
       const made = tryAttachRoom(rooms, connections, walls, floors);
-      if (!made && rooms.length >= 5) break;
+      if (made) failureStreak = 0;
+      else failureStreak++;
     }
 
-    if (rooms.length < 4) continue;
+    if (rooms.length < 12) continue;
+
+    addExtraRoomOpenings(rooms, connections, walls, floors);
 
     const startRoom = rooms[0];
     const start = { x: startRoom.cx, y: startRoom.cy };
     const exitRoom = farthestRoom(rooms, start);
     const exit = carveEdgeExit(exitRoom, walls, floors);
+
     const doors = placeDoorsFromConnections(connections, start, exit);
     const chests = placeChests(rooms, doors, start, exit);
 
@@ -201,45 +211,45 @@ function finishRoom(room) {
 }
 
 function tryAttachRoom(rooms, connections, walls, floors) {
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const parent = rooms[randInt(0, rooms.length - 1)];
-    const dir = ["left", "right", "up", "down"][randInt(0, 3)];
-    const w = randInt(4, 8);
-    const h = randInt(3, 5);
-    let x;
-    let y;
+  const parentIndex = randInt(0, rooms.length - 1);
+  const parent = rooms[parentIndex];
+  const dir = ["left", "right", "up", "down"][randInt(0, 3)];
+  const w = randInt(5, 11);
+  const h = randInt(4, 7);
 
-    if (dir === "right") {
-      x = parent.x + parent.w;
-      y = randInt(parent.y - h + 2, parent.y + parent.h - 2);
-    } else if (dir === "left") {
-      x = parent.x - w;
-      y = randInt(parent.y - h + 2, parent.y + parent.h - 2);
-    } else if (dir === "down") {
-      x = randInt(parent.x - w + 2, parent.x + parent.w - 2);
-      y = parent.y + parent.h;
-    } else {
-      x = randInt(parent.x - w + 2, parent.x + parent.w - 2);
-      y = parent.y - h;
-    }
+  let x;
+  let y;
 
-    const room = { x, y, w, h };
-    finishRoom(room);
-
-    if (room.x < 1 || room.y < 1 || room.x + room.w >= WIDTH - 1 || room.y + room.h >= HEIGHT - 1) continue;
-    if (rooms.some((r) => rectanglesOverlap(room, r))) continue;
-
-    const connection = sharedOpening(parent, room, dir);
-    if (!connection) continue;
-
-    rooms.push(room);
-    connections.push(connection);
-    carveRoom(room, walls, floors);
-    carveFloor(connection.x, connection.y, walls, floors);
-    return true;
+  if (dir === "right") {
+    x = parent.x + parent.w + 1;
+    y = randInt(parent.y - h + 2, parent.y + parent.h - 2);
+  } else if (dir === "left") {
+    x = parent.x - w - 1;
+    y = randInt(parent.y - h + 2, parent.y + parent.h - 2);
+  } else if (dir === "down") {
+    x = randInt(parent.x - w + 2, parent.x + parent.w - 2);
+    y = parent.y + parent.h + 1;
+  } else {
+    x = randInt(parent.x - w + 2, parent.x + parent.w - 2);
+    y = parent.y - h - 1;
   }
 
-  return false;
+  const room = { x, y, w, h };
+  finishRoom(room);
+
+  if (room.x < 2 || room.y < 2 || room.x + room.w >= MAP_WIDTH - 2 || room.y + room.h >= MAP_HEIGHT - 2) return false;
+  if (rooms.some((r) => rectanglesOverlap(room, r))) return false;
+
+  const connection = sharedOpening(parent, room, dir);
+  if (!connection) return false;
+
+  const childIndex = rooms.length;
+  rooms.push(room);
+  connections.push({ ...connection, parentIndex, childIndex });
+  carveRoom(room, walls, floors);
+  carveFloor(connection.x, connection.y, walls, floors);
+
+  return true;
 }
 
 function sharedOpening(parent, room, dir) {
@@ -248,16 +258,16 @@ function sharedOpening(parent, room, dir) {
     const overlapBottom = Math.min(parent.y + parent.h - 1, room.y + room.h - 1);
     if (overlapBottom < overlapTop) return null;
     const y = randInt(overlapTop, overlapBottom);
-    const x = dir === "right" ? room.x : parent.x;
-    return { x, y, color: randomColor(), locked: Math.random() < 0.28 };
+    const x = dir === "right" ? parent.x + parent.w : parent.x - 1;
+    return { x, y, color: randomColor(), locked: false };
   }
 
   const overlapLeft = Math.max(parent.x, room.x);
   const overlapRight = Math.min(parent.x + parent.w - 1, room.x + room.w - 1);
   if (overlapRight < overlapLeft) return null;
   const x = randInt(overlapLeft, overlapRight);
-  const y = dir === "down" ? room.y : parent.y;
-  return { x, y, color: randomColor(), locked: Math.random() < 0.28 };
+  const y = dir === "down" ? parent.y + parent.h : parent.y - 1;
+  return { x, y, color: randomColor(), locked: false };
 }
 
 function rectanglesOverlap(a, b) {
@@ -269,7 +279,9 @@ function rectanglesOverlap(a, b) {
 
 function carveRoom(room, walls, floors) {
   for (let y = room.y; y < room.y + room.h; y++) {
-    for (let x = room.x; x < room.x + room.w; x++) carveFloor(x, y, walls, floors);
+    for (let x = room.x; x < room.x + room.w; x++) {
+      carveFloor(x, y, walls, floors);
+    }
   }
 }
 
@@ -277,6 +289,43 @@ function carveFloor(x, y, walls, floors) {
   if (!inBounds(x, y)) return;
   walls.delete(key(x, y));
   floors.add(key(x, y));
+}
+
+function addExtraRoomOpenings(rooms, connections, walls, floors) {
+  for (let i = 0; i < rooms.length; i++) {
+    for (let j = i + 1; j < rooms.length; j++) {
+      if (Math.random() > 0.16) continue;
+
+      const opening = adjacentOpening(rooms[i], rooms[j]);
+      if (!opening) continue;
+      if (connections.some((c) => c.x === opening.x && c.y === opening.y)) continue;
+
+      carveFloor(opening.x, opening.y, walls, floors);
+      connections.push({ ...opening, parentIndex: i, childIndex: j, color: randomColor(), locked: false });
+    }
+  }
+}
+
+function adjacentOpening(a, b) {
+  if (a.x + a.w + 1 === b.x || b.x + b.w + 1 === a.x) {
+    const leftRoom = a.x < b.x ? a : b;
+    const rightRoom = a.x < b.x ? b : a;
+    const top = Math.max(leftRoom.y, rightRoom.y);
+    const bottom = Math.min(leftRoom.y + leftRoom.h - 1, rightRoom.y + rightRoom.h - 1);
+    if (bottom < top) return null;
+    return { x: leftRoom.x + leftRoom.w, y: randInt(top, bottom) };
+  }
+
+  if (a.y + a.h + 1 === b.y || b.y + b.h + 1 === a.y) {
+    const topRoom = a.y < b.y ? a : b;
+    const bottomRoom = a.y < b.y ? b : a;
+    const left = Math.max(topRoom.x, bottomRoom.x);
+    const right = Math.min(topRoom.x + topRoom.w - 1, bottomRoom.x + bottomRoom.w - 1);
+    if (right < left) return null;
+    return { x: randInt(left, right), y: topRoom.y + topRoom.h };
+  }
+
+  return null;
 }
 
 function farthestRoom(rooms, start) {
@@ -290,102 +339,134 @@ function farthestRoom(rooms, start) {
 function carveEdgeExit(room, walls, floors) {
   const distances = [
     { side: "left", value: room.cx },
-    { side: "right", value: WIDTH - 1 - room.cx },
+    { side: "right", value: MAP_WIDTH - 1 - room.cx },
     { side: "top", value: room.cy },
-    { side: "bottom", value: HEIGHT - 1 - room.cy }
+    { side: "bottom", value: MAP_HEIGHT - 1 - room.cy }
   ].sort((a, b) => a.value - b.value);
 
   const side = distances[0].side;
   let exit;
 
   if (side === "left") {
-    const y = clamp(room.cy, 1, HEIGHT - 2);
+    const y = clamp(room.cy, 1, MAP_HEIGHT - 2);
     for (let x = room.x; x >= 0; x--) carveFloor(x, y, walls, floors);
     exit = { x: 0, y, color: randomColor() };
   } else if (side === "right") {
-    const y = clamp(room.cy, 1, HEIGHT - 2);
-    for (let x = room.x + room.w - 1; x < WIDTH; x++) carveFloor(x, y, walls, floors);
-    exit = { x: WIDTH - 1, y, color: randomColor() };
+    const y = clamp(room.cy, 1, MAP_HEIGHT - 2);
+    for (let x = room.x + room.w - 1; x < MAP_WIDTH; x++) carveFloor(x, y, walls, floors);
+    exit = { x: MAP_WIDTH - 1, y, color: randomColor() };
   } else if (side === "top") {
-    const x = clamp(room.cx, 1, WIDTH - 2);
+    const x = clamp(room.cx, 1, MAP_WIDTH - 2);
     for (let y = room.y; y >= 0; y--) carveFloor(x, y, walls, floors);
     exit = { x, y: 0, color: randomColor() };
   } else {
-    const x = clamp(room.cx, 1, WIDTH - 2);
-    for (let y = room.y + room.h - 1; y < HEIGHT; y++) carveFloor(x, y, walls, floors);
-    exit = { x, y: HEIGHT - 1, color: randomColor() };
+    const x = clamp(room.cx, 1, MAP_WIDTH - 2);
+    for (let y = room.y + room.h - 1; y < MAP_HEIGHT; y++) carveFloor(x, y, walls, floors);
+    exit = { x, y: MAP_HEIGHT - 1, color: randomColor() };
   }
 
   return exit;
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
 function placeDoorsFromConnections(connections, start, exit) {
   const doors = [];
-  const shuffled = shuffle([...connections]);
+  const candidates = shuffle([...connections]).filter((c) => !samePos(c, start) && !samePos(c, exit));
 
-  for (const c of shuffled) {
-    if (doors.length >= 4) break;
-    if (samePos(c, start) || samePos(c, exit)) continue;
-    if (Math.random() < 0.55) doors.push({ x: c.x, y: c.y, locked: c.locked, color: c.color });
+  for (const c of candidates) {
+    if (doors.length >= 8) break;
+    if (Math.random() < 0.48) {
+      doors.push({
+        x: c.x,
+        y: c.y,
+        locked: false,
+        color: c.color,
+        parentIndex: c.parentIndex,
+        childIndex: c.childIndex
+      });
+    }
+  }
+
+  const lockable = shuffle(doors.filter((d) => d.parentIndex !== undefined));
+  const lockCount = Math.min(3, Math.max(1, Math.floor(lockable.length / 3)));
+
+  for (let i = 0; i < lockCount; i++) {
+    if (Math.random() < 0.75) {
+      lockable[i].locked = true;
+      lockable[i].color = randomColor();
+    }
   }
 
   return doors;
 }
 
 function placeChests(rooms, doors, start, exit) {
-  const chests = [];
+  const chestsByRoom = new Map();
   const blocked = new Set([key(start.x, start.y), key(exit.x, exit.y), ...doors.map((d) => key(d.x, d.y))]);
 
-  const neededColors = new Set([exit.color]);
-  doors.filter((d) => d.locked).forEach((d) => neededColors.add(d.color));
-
-  const chestRooms = shuffle([...rooms]);
-  const usedRooms = new Set();
-
-  for (const color of neededColors) {
-    const room = nextUnusedRoom(chestRooms, usedRooms) || rooms[0];
-    const pos = randomFloorInRoom(room, blocked);
-    if (!pos) continue;
-    chests.push({ ...pos, item: `${titleColor(color)} Key`, locked: false, lockColor: null, roomId: rooms.indexOf(room) });
-    blocked.add(key(pos.x, pos.y));
-    usedRooms.add(room);
+  function addItemToRoom(roomIndex, item) {
+    if (!chestsByRoom.has(roomIndex)) {
+      chestsByRoom.set(roomIndex, { items: [], locked: false, lockColor: null });
+    }
+    chestsByRoom.get(roomIndex).items.push(item);
   }
 
-  const desiredChestCount = Math.min(rooms.length, Math.max(chests.length + 1, 3));
+  addItemToRoom(roomIndexForPoint(rooms, exit), `${titleColor(exit.color)} Key`);
 
-  while (chests.length < desiredChestCount) {
-    const room = nextUnusedRoom(chestRooms, usedRooms);
-    if (!room) break;
+  for (const door of doors) {
+    if (!door.locked) continue;
+    const parentRoom = rooms[door.parentIndex] ? door.parentIndex : 0;
+    addItemToRoom(parentRoom, `${titleColor(door.color)} Key`);
+  }
+
+  const targetChestCount = Math.min(rooms.length, Math.max(6, chestsByRoom.size + 4));
+  const roomOrder = shuffle([...rooms.keys()]);
+
+  while (chestsByRoom.size < targetChestCount && roomOrder.length) {
+    const roomIndex = roomOrder.pop();
+    if (chestsByRoom.has(roomIndex)) continue;
+    chestsByRoom.set(roomIndex, {
+      items: [randomChestItem()],
+      locked: Math.random() < 0.28,
+      lockColor: randomColor()
+    });
+  }
+
+  const chests = [];
+
+  for (const [roomIndex, chestData] of chestsByRoom.entries()) {
+    const room = rooms[roomIndex] || rooms[0];
     const pos = randomFloorInRoom(room, blocked);
     if (!pos) continue;
 
-    const canLock = gameLevelForGeneration() > 1 || Math.random() < 0.4;
-    const locked = canLock && Math.random() < 0.35;
-    const lockColor = locked ? [...neededColors][randInt(0, neededColors.size - 1)] : null;
-    const item = randomChestItem();
+    const containsKey = chestData.items.some((item) => item.endsWith("Key"));
+    chests.push({
+      x: pos.x,
+      y: pos.y,
+      items: chestData.items,
+      locked: containsKey ? false : chestData.locked,
+      lockColor: containsKey ? null : chestData.lockColor,
+      roomIndex
+    });
 
-    chests.push({ ...pos, item, locked, lockColor, roomId: rooms.indexOf(room) });
     blocked.add(key(pos.x, pos.y));
-    usedRooms.add(room);
   }
 
   return chests;
 }
 
-function gameLevelForGeneration() {
-  return game ? game.level : 1;
-}
+function roomIndexForPoint(rooms, point) {
+  let bestIndex = 0;
+  let bestDist = Infinity;
 
-function nextUnusedRoom(rooms, usedRooms) {
-  while (rooms.length) {
-    const room = rooms.shift();
-    if (!usedRooms.has(room)) return room;
-  }
-  return null;
+  rooms.forEach((room, index) => {
+    const dist = Math.abs(room.cx - point.x) + Math.abs(room.cy - point.y);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
 }
 
 function randomFloorInRoom(room, blocked) {
@@ -409,27 +490,42 @@ function randomColor() {
   return COLORS[randInt(0, COLORS.length - 1)];
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function fallbackDungeon() {
   const walls = new Set();
   const floors = new Set();
 
-  for (let y = 0; y < HEIGHT; y++) {
-    for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
+  for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let x = 0; x < MAP_WIDTH; x++) walls.add(key(x, y));
   }
 
-  const room = { x: 3, y: 3, w: WIDTH - 6, h: HEIGHT - 6, cx: 6, cy: 6 };
-  carveRoom(room, walls, floors);
+  const rooms = [
+    { x: 8, y: 8, w: 10, h: 6 },
+    { x: 19, y: 8, w: 10, h: 6 },
+    { x: 30, y: 8, w: 10, h: 6 }
+  ];
+  rooms.forEach(finishRoom);
+  rooms.forEach((room) => carveRoom(room, walls, floors));
+
+  carveFloor(18, 10, walls, floors);
+  carveFloor(29, 10, walls, floors);
+
+  for (let x = 39; x < MAP_WIDTH; x++) carveFloor(x, 10, walls, floors);
 
   return {
     walls,
     floors,
-    rooms: [room],
-    start: { x: 6, y: 6 },
-    exit: { x: WIDTH - 1, y: 8, color: "red" },
-    doors: [],
+    rooms,
+    start: { x: rooms[0].cx, y: rooms[0].cy },
+    exit: { x: MAP_WIDTH - 1, y: 10, color: "red" },
+    doors: [{ x: 29, y: 10, color: "blue", locked: true, parentIndex: 1, childIndex: 2 }],
     chests: [
-      { x: 8, y: 6, item: "Red Key", locked: false, lockColor: null, roomId: 0 },
-      { x: 10, y: 6, item: "Ammo Box", locked: false, lockColor: null, roomId: 0 }
+      { x: 10, y: 10, items: ["Blue Key"], locked: false, lockColor: null, roomIndex: 0 },
+      { x: 21, y: 10, items: ["Red Key"], locked: false, lockColor: null, roomIndex: 1 },
+      { x: 32, y: 10, items: ["Ammo Box"], locked: false, lockColor: null, roomIndex: 2 }
     ]
   };
 }
@@ -442,11 +538,18 @@ function shuffle(arr) {
   return arr;
 }
 
+function cameraOrigin() {
+  return {
+    x: clamp(game.player.x - Math.floor(VIEW_WIDTH / 2), 0, MAP_WIDTH - VIEW_WIDTH),
+    y: clamp(game.player.y - Math.floor(VIEW_HEIGHT / 2), 0, MAP_HEIGHT - VIEW_HEIGHT)
+  };
+}
+
 function recalcVisibility() {
   game.visible.clear();
 
-  for (let y = 0; y < HEIGHT; y++) {
-    for (let x = 0; x < WIDTH; x++) {
+  for (let y = Math.max(0, game.player.y - VIS_RADIUS); y <= Math.min(MAP_HEIGHT - 1, game.player.y + VIS_RADIUS); y++) {
+    for (let x = Math.max(0, game.player.x - VIS_RADIUS); x <= Math.min(MAP_WIDTH - 1, game.player.x + VIS_RADIUS); x++) {
       const dist = Math.hypot(x - game.player.x, y - game.player.y);
 
       if (dist <= VIS_RADIUS && hasLine(game.player.x, game.player.y, x, y, true)) {
@@ -652,7 +755,7 @@ function resolveAction(action) {
 }
 
 function enemyCap() {
-  return Math.min(BASE_ENEMY_CAP + Math.floor(game.level / 2), 9);
+  return Math.min(BASE_ENEMY_CAP + Math.floor(game.level / 2), 12);
 }
 
 function move(dx, dy) {
@@ -727,13 +830,17 @@ function move(dx, dy) {
     const openedChest = chestAt(nx, ny);
     if (openedChest) {
       game.pendingChest = openedChest;
-      addLog(`Chest found: ${openedChest.item}.`);
+      addLog(`Chest found: ${chestLabel(openedChest)}.`);
       openChestOverlay(openedChest);
     }
 
     game.turn++;
     return true;
   });
+}
+
+function chestLabel(chest) {
+  return chest.items.join(", ");
 }
 
 function tryShootAt(x, y) {
@@ -874,7 +981,7 @@ function spawnEnemies(count) {
   let spawned = 0;
 
   while (spawned < count && candidates.length && game.enemies.length < enemyCap()) {
-    const pick = candidates.splice(randInt(0, Math.min(8, candidates.length - 1)), 1)[0];
+    const pick = candidates.splice(randInt(0, Math.min(12, candidates.length - 1)), 1)[0];
     game.enemies.push({ x: pick.x, y: pick.y, hp: ENEMY_MAX_HP });
     spawned++;
   }
@@ -968,37 +1075,9 @@ function takeChest() {
 
   const chest = game.pendingChest;
 
-  if (chest.item.endsWith("Key")) {
-    const color = chest.item.split(" ")[0].toLowerCase();
-    addKey(color);
+  for (const item of chest.items) {
+    takeItem(item);
   }
-
-  if (chest.item === "Health Kit") game.inventory.push({ name: "Health Kit" });
-
-  if (chest.item === "Body Armor") game.inventory.push({ name: "Body Armor", armor: 3 });
-
-  if (chest.item === "Ammo Box") {
-    const amount = randInt(6, 10);
-    game.reserveAmmo += amount;
-    addLog(`Ammo box found. Reserve +${amount}.`);
-  }
-
-  if (chest.item === "Extended Magazine") {
-    game.maxShots += 3;
-    addLog(`Extended Magazine installed. Magazine size is now ${game.maxShots}.`);
-  }
-
-  if (chest.item === "Improved Barrel") {
-    game.shotDamage += 1;
-    addLog("Improved Barrel installed. Your shots hit harder.");
-  }
-
-  if (chest.item === "Map") {
-    game.mapFound = true;
-    addLog("You found a map. The floor plan is outlined.");
-  }
-
-  if (!chest.item.endsWith("Key")) addLog(`Item taken: ${chest.item}.`);
 
   game.chests = game.chests.filter((c) => c !== chest);
   game.pendingChest = null;
@@ -1008,6 +1087,41 @@ function takeChest() {
     game.turn++;
     return true;
   });
+}
+
+function takeItem(item) {
+  if (item.endsWith("Key")) {
+    const color = item.split(" ")[0].toLowerCase();
+    addKey(color);
+    return;
+  }
+
+  if (item === "Health Kit") game.inventory.push({ name: "Health Kit" });
+
+  if (item === "Body Armor") game.inventory.push({ name: "Body Armor", armor: 3 });
+
+  if (item === "Ammo Box") {
+    const amount = randInt(6, 10);
+    game.reserveAmmo += amount;
+    addLog(`Ammo box found. Reserve +${amount}.`);
+  }
+
+  if (item === "Extended Magazine") {
+    game.maxShots += 3;
+    addLog(`Extended Magazine installed. Magazine size is now ${game.maxShots}.`);
+  }
+
+  if (item === "Improved Barrel") {
+    game.shotDamage += 1;
+    addLog("Improved Barrel installed. Your shots hit harder.");
+  }
+
+  if (item === "Map") {
+    game.mapFound = true;
+    addLog("You found a map. The floor plan is outlined.");
+  }
+
+  if (!item.endsWith("Key")) addLog(`Item taken: ${item}.`);
 }
 
 function leaveChest() {
@@ -1021,7 +1135,7 @@ function leaveChest() {
 
 function openChestOverlay(chest) {
   const lockText = chest.locked ? `Locked ${titleColor(chest.lockColor)} Chest` : "Chest";
-  el.chestText.textContent = `${lockText}: ${chest.item}`;
+  el.chestText.textContent = `${lockText}: ${chestLabel(chest)}`;
   el.chestOverlay.classList.remove("hidden");
 }
 
@@ -1062,13 +1176,14 @@ function render() {
   el.kills.textContent = game.kills;
   el.enemyCount.textContent = game.enemies.length;
 
+  const camera = cameraOrigin();
   const rows = [];
 
-  for (let y = 0; y < HEIGHT; y++) {
+  for (let vy = 0; vy < VIEW_HEIGHT; vy++) {
     const row = [];
 
-    for (let x = 0; x < WIDTH; x++) {
-      row.push(renderCell(x, y));
+    for (let vx = 0; vx < VIEW_WIDTH; vx++) {
+      row.push(renderCell(camera.x + vx, camera.y + vy));
     }
 
     rows.push(row.join(""));
@@ -1157,6 +1272,10 @@ function setup() {
     if (!game) return;
 
     const k = event.key.toLowerCase();
+
+    if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) {
+      event.preventDefault();
+    }
 
     if (k === " " && game.over && !game.won) {
       newGame();
