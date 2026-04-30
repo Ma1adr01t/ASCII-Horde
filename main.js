@@ -17,6 +17,21 @@ const el = {
   chestOverlay: document.getElementById("chest-overlay"), chestText: document.getElementById("chest-text"), takeBtn: document.getElementById("take-btn"), leaveBtn: document.getElementById("leave-btn")
 };
 
+
+function showBootError(message) {
+  const text = `Startup error: ${message}`;
+  if (el.log) el.log.innerHTML = `<p>${text}</p>`;
+  if (el.grid) el.grid.textContent = "Map failed to initialize. Press Restart.";
+  console.error(text);
+}
+
+function hasRequiredElements() {
+  return Boolean(
+    el.grid && el.hp && el.maxHp && el.shots && el.turn && el.kills && el.log && el.inventory &&
+    el.dpad && el.waitBtn && el.reloadBtn && el.restartBtn && el.chestOverlay && el.chestText && el.takeBtn && el.leaveBtn
+  );
+}
+
 let game;
 const key = (x, y) => `${x},${y}`;
 const inBounds = (x, y) => x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT;
