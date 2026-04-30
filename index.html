@@ -5,12 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ASCII Horde</title>
 
-    <link rel="stylesheet" href="./style.css?v=compact1" />
+    <link rel="stylesheet" href="./style.css?v=aim1" />
 
     <style>
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
         margin: 0;
@@ -27,9 +25,7 @@
         text-align: center;
       }
 
-      .title-block {
-        margin-bottom: 6px;
-      }
+      .title-block { margin-bottom: 6px; }
 
       h1 {
         margin: 0;
@@ -37,9 +33,7 @@
         letter-spacing: 2px;
       }
 
-      h2 {
-        margin: 0 0 10px;
-      }
+      h2 { margin: 0 0 10px; }
 
       .build {
         margin-top: 3px;
@@ -57,21 +51,12 @@
         line-height: 1.2;
       }
 
-      .condition {
-        font-weight: 700;
-      }
-
-      .healthy {
-        color: #77ff77;
-      }
-
-      .injured {
-        color: #ffd166;
-      }
-
-      .critical {
-        color: #ff6666;
-      }
+      .condition { font-weight: 700; }
+      .healthy { color: #77ff77; }
+      .injured { color: #ffd166; }
+      .critical { color: #ff6666; }
+      .aiming { color: #99ddff; }
+      .moving { color: #dddddd; }
 
       .grid-wrap {
         position: relative;
@@ -112,30 +97,22 @@
         touch-action: manipulation;
       }
 
-      .enemy.healthy {
-        color: #ff9999;
-      }
-
-      .enemy.injured {
-        color: #ffcc66;
-      }
-
+      .enemy.healthy { color: #ff9999; }
+      .enemy.injured { color: #ffcc66; }
       .enemy.critical {
         color: #ff5555;
         text-decoration: underline;
       }
 
-      .wall {
-        color: #aaaaaa;
+      .enemy.target {
+        background: #eeeeee;
+        color: #000000;
+        text-decoration: none;
       }
 
-      .door {
-        color: #dddd88;
-      }
-
-      .locked {
-        color: #ffcc66;
-      }
+      .wall { color: #aaaaaa; }
+      .door { color: #dddd88; }
+      .locked { color: #ffcc66; }
 
       .chest {
         color: #66ccff;
@@ -152,9 +129,7 @@
         font-weight: 700;
       }
 
-      .memory {
-        opacity: 0.35;
-      }
+      .memory { opacity: 0.35; }
 
       .message-log {
         width: min(620px, 100%);
@@ -170,9 +145,7 @@
         overflow: hidden;
       }
 
-      .message-log p {
-        margin: 2px 0;
-      }
+      .message-log p { margin: 2px 0; }
 
       .inventory {
         width: min(620px, 100%);
@@ -219,8 +192,8 @@
       .right { grid-area: right; }
 
       .actions {
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: repeat(2, 82px);
         gap: 6px;
       }
 
@@ -246,6 +219,14 @@
         outline-offset: 2px;
       }
 
+      .primary-action {
+        border-color: #99ddff;
+      }
+
+      .danger-action {
+        border-color: #aa5555;
+      }
+
       .overlay {
         position: absolute;
         inset: 0;
@@ -255,9 +236,7 @@
         z-index: 10;
       }
 
-      .hidden {
-        display: none !important;
-      }
+      .hidden { display: none !important; }
 
       .modal {
         width: min(300px, 88%);
@@ -287,14 +266,10 @@
         font-size: 12px;
       }
 
-      .legend p {
-        margin: 0;
-      }
+      .legend p { margin: 0; }
 
       @media (max-width: 560px) {
-        .game-shell {
-          padding: 6px;
-        }
+        .game-shell { padding: 6px; }
 
         h1,
         .build,
@@ -332,9 +307,7 @@
           font-size: 11px;
         }
 
-        .inventory-row {
-          margin-top: 2px;
-        }
+        .inventory-row { margin-top: 2px; }
 
         .controls {
           margin-top: 6px;
@@ -348,6 +321,7 @@
         }
 
         .actions {
+          grid-template-columns: repeat(2, 72px);
           gap: 4px;
         }
 
@@ -364,12 +338,13 @@
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: compact-mobile-1</div>
+        <div id="build" class="build">Build: aim-mode-1</div>
       </header>
 
       <section class="hud" aria-live="polite">
         <span>Floor: <strong id="level">1</strong></span>
         <span>Condition: <strong id="condition" class="condition healthy">Healthy</strong></span>
+        <span>Mode: <strong id="mode" class="moving">Move</strong></span>
         <span>Ammo: <strong id="shots">6/12</strong></span>
         <span>Turn: <strong id="turn">0</strong></span>
         <span>Kills: <strong id="kills">0</strong></span>
@@ -414,9 +389,12 @@
         </div>
 
         <div class="actions">
+          <button id="target-btn" class="btn" type="button">Target</button>
+          <button id="aim-btn" class="btn primary-action" type="button">Aim</button>
+          <button id="fire-btn" class="btn primary-action" type="button">Fire</button>
           <button id="wait-btn" class="btn" type="button">Wait</button>
           <button id="reload-btn" class="btn" type="button">Reload</button>
-          <button id="restart-btn" class="btn" type="button">Restart</button>
+          <button id="restart-btn" class="btn danger-action" type="button">Restart</button>
         </div>
       </section>
 
@@ -434,6 +412,6 @@
       </section>
     </main>
 
-    <script src="./main.js?v=compact1"></script>
+    <script src="./main.js?v=aim1"></script>
   </body>
 </html>
