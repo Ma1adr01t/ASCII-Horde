@@ -29,6 +29,10 @@ h1 { margin: 0 0 8px; font-size: 1.2rem; }
 .cell.enemy { color: var(--danger); cursor: pointer; touch-action: manipulation; min-width: 0.9em; }
 .cell.target { color: var(--accent); font-weight: 700; text-decoration: underline; }
 .cell.wall { color: var(--wall); }
+
+.legend { margin-top: 8px; padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 0.9rem; color: var(--muted); }
+.legend strong { color: var(--text); }
+
 .message-log { margin-top: 8px; min-height: 92px; padding: 8px 10px; color: var(--muted); }
 .message-log p { margin: 0 0 4px; }
 .message-log p:last-child { margin-bottom: 0; }

@@ -12,7 +12,7 @@ const ENEMY_DAMAGE = 1;
 const CHEST_ITEMS = ["Health Kit", "Body Armor", "Extended Magazine", "Improved Barrel", "Key", "Map"];
 const el = {
   grid: document.getElementById("grid"), hp: document.getElementById("hp"), maxHp: document.getElementById("max-hp"), shots: document.getElementById("shots"),
-  turn: document.getElementById("turn"), kills: document.getElementById("kills"), enemyCount: document.getElementById("enemy-count"), log: document.getElementById("message-log"),
+  turn: document.getElementById("turn"), kills: document.getElementById("kills"), log: document.getElementById("message-log"),
   inventory: document.getElementById("inventory"), dpad: document.querySelector(".dpad"), waitBtn: document.getElementById("wait-btn"), reloadBtn: document.getElementById("reload-btn"), restartBtn: document.getElementById("restart-btn"),
   chestOverlay: document.getElementById("chest-overlay"), chestText: document.getElementById("chest-text"), takeBtn: document.getElementById("take-btn"), leaveBtn: document.getElementById("leave-btn")
 };
@@ -146,12 +146,16 @@ function chestAt(x, y) { return game.chests.find((c) => c.x === x && c.y === y);
 function doorAt(x, y) { return game.doors.find((d) => d.x === x && d.y === y); }
 function addLog(msg) { game.logs.push(msg); game.logs = game.logs.slice(-MAX_LOG_LINES); }
 
+// Visibility tracks current LOS; discovered tiles keep wall memory so explored rooms stay readable.
 function recalcVisibility() {
   game.visible.clear();
   for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) {
     const dx = x - game.player.x, dy = y - game.player.y;
     if (Math.hypot(dx, dy) > VIS_RADIUS) continue;
-    if (hasLine(game.player.x, game.player.y, x, y, true)) game.visible.add(key(x, y));
+    if (hasLine(game.player.x, game.player.y, x, y, true)) {
+      game.visible.add(key(x, y));
+      game.discovered.add(key(x, y));
+    }
   }
 }
 function hasLine(x0, y0, x1, y1, stopAtWall) {
