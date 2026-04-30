@@ -1,7 +1,7 @@
-const WIDTH = 54;
-const HEIGHT = 30;
+const WIDTH = 32;
+const HEIGHT = 18;
 const MAX_LOG_LINES = 4;
-const VIS_RADIUS = 10;
+const VIS_RADIUS = 7;
 
 const BASE_MAX_HP = 10;
 const BASE_CLIP_SIZE = 6;
@@ -9,7 +9,7 @@ const BASE_RESERVE_AMMO = 12;
 const BASE_SHOT_DAMAGE = 2;
 const ENEMY_MAX_HP = 5;
 const ENEMY_DAMAGE = 1;
-const BASE_ENEMY_CAP = 7;
+const BASE_ENEMY_CAP = 5;
 const MISS_CHANCE = 0.08;
 
 const DIRS = {
@@ -128,7 +128,7 @@ function startLevel(carry) {
   };
 
   recalcVisibility();
-  spawnEnemies(Math.min(5 + game.level, enemyCap()));
+  spawnEnemies(Math.min(3 + game.level, enemyCap()));
   recalcVisibility();
   closeChestOverlay();
   closeLevelOverlay();
@@ -140,7 +140,7 @@ function structuredCloneInventory(items) {
 }
 
 function generateDungeon() {
-  for (let attempt = 0; attempt < 20; attempt++) {
+  for (let attempt = 0; attempt < 25; attempt++) {
     const walls = new Set();
     const floors = new Set();
     const rooms = [];
@@ -149,9 +149,9 @@ function generateDungeon() {
       for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
     }
 
-    for (let i = 0; i < 14; i++) {
-      const w = randInt(6, 11);
-      const h = randInt(4, 7);
+    for (let i = 0; i < 9; i++) {
+      const w = randInt(4, 7);
+      const h = randInt(3, 5);
       const x = randInt(1, WIDTH - w - 2);
       const y = randInt(1, HEIGHT - h - 2);
       const room = { x, y, w, h, cx: x + Math.floor(w / 2), cy: y + Math.floor(h / 2) };
@@ -160,9 +160,10 @@ function generateDungeon() {
       carveRoom(room, walls, floors);
     }
 
-    if (rooms.length < 4) continue;
+    if (rooms.length < 3) continue;
 
     rooms.sort((a, b) => a.cx - b.cx);
+
     for (let i = 1; i < rooms.length; i++) {
       const a = rooms[i - 1];
       const b = rooms[i];
@@ -181,6 +182,7 @@ function generateDungeon() {
     const exit = { x: exitRoom.cx, y: exitRoom.cy };
     const doors = placeDoors(floors, walls, start, exit);
     const chests = placeChests(floors, doors, start, exit, rooms);
+
     return { walls, floors, rooms, start, exit, doors, chests };
   }
 
@@ -188,12 +190,17 @@ function generateDungeon() {
 }
 
 function rectanglesOverlap(a, b) {
-  return a.x <= b.x + b.w + 1 && a.x + a.w + 1 >= b.x && a.y <= b.y + b.h + 1 && a.y + a.h + 1 >= b.y;
+  return a.x <= b.x + b.w + 1 &&
+    a.x + a.w + 1 >= b.x &&
+    a.y <= b.y + b.h + 1 &&
+    a.y + a.h + 1 >= b.y;
 }
 
 function carveRoom(room, walls, floors) {
   for (let y = room.y; y < room.y + room.h; y++) {
-    for (let x = room.x; x < room.x + room.w; x++) carveFloor(x, y, walls, floors);
+    for (let x = room.x; x < room.x + room.w; x++) {
+      carveFloor(x, y, walls, floors);
+    }
   }
 }
 
@@ -211,21 +218,22 @@ function carveCorridor(x1, y1, x2, y2, walls, floors) {
 function fallbackDungeon() {
   const walls = new Set();
   const floors = new Set();
+
   for (let y = 0; y < HEIGHT; y++) {
     for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
   }
 
-  const room = { x: 4, y: 4, w: WIDTH - 8, h: HEIGHT - 8, cx: 8, cy: 8 };
+  const room = { x: 3, y: 3, w: WIDTH - 6, h: HEIGHT - 6, cx: 6, cy: 6 };
   carveRoom(room, walls, floors);
 
   return {
     walls,
     floors,
     rooms: [room],
-    start: { x: 8, y: 8 },
-    exit: { x: WIDTH - 9, y: HEIGHT - 9 },
+    start: { x: 6, y: 6 },
+    exit: { x: WIDTH - 7, y: HEIGHT - 7 },
     doors: [],
-    chests: [{ x: 10, y: 8, item: "Key" }, { x: 12, y: 8, item: "Ammo Box" }]
+    chests: [{ x: 8, y: 6, item: "Key" }, { x: 10, y: 6, item: "Ammo Box" }]
   };
 }
 
@@ -250,13 +258,13 @@ function placeDoors(floors, walls, start, exit) {
   shuffle(candidates);
 
   const doors = [];
-  const maxDoors = Math.min(3, candidates.length);
+  const maxDoors = Math.min(2, candidates.length);
 
   for (let i = 0; i < maxDoors; i++) {
     if (Math.random() < 0.5) doors.push({ ...candidates[i], locked: false });
   }
 
-  if (doors.length && Math.random() < 0.6) doors[0].locked = true;
+  if (doors.length && Math.random() < 0.5) doors[0].locked = true;
 
   return doors;
 }
@@ -265,7 +273,7 @@ function placeChests(floors, doors, start, exit, rooms) {
   const blocked = new Set([key(start.x, start.y), key(exit.x, exit.y), ...doors.map((d) => key(d.x, d.y))]);
   const lockedCount = doors.filter((d) => d.locked).length;
   const requiredKeys = lockedCount + 1;
-  const chestCount = Math.min(4, Math.max(requiredKeys + 1, 2));
+  const chestCount = Math.min(3, Math.max(requiredKeys + 1, 2));
   const chests = [];
   const earlyRoom = rooms[0];
 
@@ -345,14 +353,17 @@ function hasLine(x0, y0, x1, y1, stopAtWall) {
 
   while (!(x === x1 && y === y1)) {
     const e2 = err * 2;
+
     if (e2 > -dy) {
       err -= dy;
       x += sx;
     }
+
     if (e2 < dx) {
       err += dx;
       y += sy;
     }
+
     if (x === x1 && y === y1) break;
     if (stopAtWall && game.walls.has(key(x, y))) return false;
   }
@@ -421,7 +432,7 @@ function resolveAction(action) {
 }
 
 function enemyCap() {
-  return Math.min(BASE_ENEMY_CAP + Math.floor(game.level / 2), 12);
+  return Math.min(BASE_ENEMY_CAP + Math.floor(game.level / 2), 9);
 }
 
 function move(dx, dy) {
@@ -589,6 +600,7 @@ function enemiesTurn() {
     }
 
     const options = [];
+
     if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) options.push([enemy.x + Math.sign(dx), enemy.y]);
     if (dy !== 0) options.push([enemy.x, enemy.y + Math.sign(dy)]);
     if (Math.abs(dx) < Math.abs(dy) && dx !== 0) options.push([enemy.x + Math.sign(dx), enemy.y]);
@@ -629,8 +641,9 @@ function spawnEnemies(count) {
   candidates.sort((a, b) => b.dist - a.dist);
 
   let spawned = 0;
+
   while (spawned < count && candidates.length && game.enemies.length < enemyCap()) {
-    const pick = candidates.splice(randInt(0, Math.min(10, candidates.length - 1)), 1)[0];
+    const pick = candidates.splice(randInt(0, Math.min(8, candidates.length - 1)), 1)[0];
     game.enemies.push({ x: pick.x, y: pick.y, hp: ENEMY_MAX_HP });
     spawned++;
   }
