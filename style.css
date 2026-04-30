@@ -17,7 +17,7 @@ body {
 }
 .game-shell { max-width: 980px; margin: 0 auto; padding: 12px; }
 h1 { margin: 0 0 8px; font-size: 1.2rem; }
-.hud, .message-log, .grid-wrap, .controls, .inventory, .legend {
+.hud, .message-log, .grid-wrap, .controls, .inventory {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
