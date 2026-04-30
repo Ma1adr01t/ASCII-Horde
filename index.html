@@ -1,56 +1,44 @@
 <!doctype html>
-<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ASCII Horde</title>
-    <title>ASCII Horde - Proof of Concept</title>
+    <title>ASCII Horde - Tactical Survivors Prototype</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <main class="game-shell">
       <h1>ASCII Horde</h1>
 
-      <section id="hud" class="hud" aria-live="polite"></section>
+      <section class="hud" aria-live="polite">
+        <span>HP: <strong id="hp">10</strong></span>
+        <span>Shots: <strong id="shots">3/3</strong></span>
+        <span>Turn: <strong id="turn">0</strong></span>
+        <span>Kills: <strong id="kills">0</strong></span>
+        <span>Enemies: <strong id="enemy-count">0</strong></span>
+      </section>
 
-      <pre id="grid" class="grid" aria-label="Game grid" role="img"></pre>
-
-      <section class="controls-help">
-        <p>Move with Arrow Keys or WASD. Press R to restart.</p>
+      <section class="grid-wrap" aria-label="ASCII battlefield">
+        <pre id="grid" class="grid" role="img" aria-label="40 by 30 ASCII grid"></pre>
       </section>
 
       <section id="message-log" class="message-log" aria-live="polite"></section>
 
-      <section class="dpad-wrap" aria-label="On-screen controls">
+      <section class="controls" aria-label="Controls">
         <div class="dpad" role="group" aria-label="Directional pad">
-          <button class="dpad-btn up" data-dir="up" aria-label="Move up">▲</button>
-          <button class="dpad-btn left" data-dir="left" aria-label="Move left">◀</button>
-          <button class="dpad-btn right" data-dir="right" aria-label="Move right">▶</button>
-          <button class="dpad-btn down" data-dir="down" aria-label="Move down">▼</button>
+          <button data-dir="up" class="btn dir up" type="button">Up</button>
+          <button data-dir="left" class="btn dir left" type="button">Left</button>
+          <button data-dir="right" class="btn dir right" type="button">Right</button>
+          <button data-dir="down" class="btn dir down" type="button">Down</button>
+        </div>
+        <div class="actions">
+          <button id="wait-btn" class="btn" type="button">Wait</button>
+          <button id="reload-btn" class="btn" type="button">Reload</button>
+          <button id="restart-btn" class="btn" type="button">Restart</button>
         </div>
       </section>
-      <section class="hud" aria-label="Game HUD">
-        <div>HP: <span id="hp">10</span></div>
-        <div>Turn: <span id="turn">0</span></div>
-        <div>Kills: <span id="kills">0</span></div>
-        <div>Enemies: <span id="enemy-count">0</span></div>
-      </section>
 
-      <section class="board-wrap" aria-label="ASCII battlefield">
-        <pre id="board"></pre>
-      </section>
-
-      <section class="controls" aria-label="Control help">
-        Move with <strong>WASD</strong> or <strong>Arrow Keys</strong>. Each move is one turn.
-      </section>
-
-      <section class="log-wrap" aria-label="Message log">
-        <h2>Message Log</h2>
-        <ul id="log"></ul>
-      </section>
-
-      <button id="restart" type="button">Restart Game</button>
+      <p class="help">Move with WASD or Arrow Keys. Click an enemy to shoot. Press Space to restart after game over.</p>
     </main>
 
     <script src="main.js"></script>
