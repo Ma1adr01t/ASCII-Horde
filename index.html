@@ -4,8 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ASCII Horde</title>
-    <link rel="stylesheet" href="style.css" />
+
+    <!-- Cache-busted stylesheet so GitHub Pages/browser does not use an old CSS file -->
+    <link rel="stylesheet" href="./style.css?v=wide4" />
   </head>
+
   <body>
     <main class="game-shell">
       <header class="title-block">
@@ -67,10 +70,20 @@
       </section>
 
       <section class="legend">
-        <p><strong>@</strong> player · <strong>H/h</strong> enemy · <strong>#</strong> wall · <strong>D</strong> door · <strong>C</strong> chest · <strong>a</strong> ammo · <strong>E</strong> exit · <strong>.</strong> unknown</p>
+        <p>
+          <strong>@</strong> player ·
+          <strong>H/h</strong> enemy ·
+          <strong>#</strong> wall ·
+          <strong>D</strong> door ·
+          <strong>C</strong> chest ·
+          <strong>a</strong> ammo ·
+          <strong>E</strong> exit ·
+          <strong>.</strong> unknown
+        </p>
       </section>
     </main>
 
-    <script src="main.js"></script>
+    <!-- Cache-busted script so GitHub Pages/browser does not use an old JS file -->
+    <script src="./main.js?v=wide4"></script>
   </body>
 </html>
