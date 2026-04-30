@@ -1,1 +1,108 @@
-style.css
+:root {
+  --bg: #101018;
+  --panel: #181a26;
+  --fg: #e6e6ef;
+  --muted: #9ca3af;
+  --accent: #63b3ed;
+  --danger: #f56565;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.game-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.hud,
+.message-log,
+.grid,
+.controls-help {
+  background: var(--panel);
+  border: 1px solid #2b3040;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.grid {
+  min-height: 260px;
+  white-space: pre;
+  overflow: auto;
+}
+
+.message-log {
+  margin-top: 10px;
+  min-height: 80px;
+}
+
+.log-line {
+  margin: 0 0 4px;
+  color: var(--muted);
+}
+
+.log-line:last-child { margin-bottom: 0; }
+
+.enemy-char { color: var(--danger); }
+.target-char { color: var(--accent); font-weight: 700; }
+
+.dpad-wrap {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.dpad {
+  display: grid;
+  user-select: none;
+  -webkit-user-select: none;
+  grid-template-columns: repeat(3, 78px);
+  grid-template-rows: repeat(3, 78px);
+  gap: 8px;
+  grid-template-areas:
+    ". up ."
+    "left . right"
+    ". down .";
+}
+
+.dpad-btn {
+  font-size: 2rem;
+  border: 1px solid #46506a;
+  border-radius: 14px;
+  background: #232a3d;
+  color: var(--fg);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.dpad-btn:active { transform: scale(0.97); }
+.up { grid-area: up; }
+.down { grid-area: down; }
+.left { grid-area: left; }
+.right { grid-area: right; }
+
+@media (min-width: 900px) {
+  .dpad-wrap {
+    opacity: 0.5;
+  }
+
+  .dpad-wrap:hover,
+  .dpad-wrap:focus-within {
+    opacity: 1;
+  }
+
+  .dpad {
+    grid-template-columns: repeat(3, 64px);
+    grid-template-rows: repeat(3, 64px);
+  }
+}
