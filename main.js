@@ -1,482 +1,329 @@
-const gridEl = document.getElementById('grid');
-const hudEl = document.getElementById('hud');
-const logEl = document.getElementById('message-log');
-const dpadEl = document.querySelector('.dpad');
+// ASCII Horde tactical survivors-like prototype.
+// Core loop per valid player action:
+// 1) Resolve player action.
+// 2) Remove dead enemies + update kills.
+// 3) Enemies act.
+// 4) Spawn/grow horde.
+// 5) Render HUD/log/grid.
+// 6) Check game over.
 
-const WIDTH = 18;
-const HEIGHT = 12;
-const MAX_LOG = 6;
-const SYNTHETIC_CLICK_GUARD_MS = 450;
-
-let state;
-
-function newGame() {
-  state = {
-    turn: 1,
-    hp: 10,
-    over: false,
-    player: { x: Math.floor(WIDTH / 2), y: Math.floor(HEIGHT / 2) },
-    enemies: [
-      { x: 2, y: 2 },
-      { x: WIDTH - 3, y: 2 },
-      { x: 2, y: HEIGHT - 3 },
-      { x: WIDTH - 3, y: HEIGHT - 3 }
-    ],
-    logs: ['Survive the horde. Move one tile each turn.']
-  };
-  render();
-}
-
-function addLog(text) {
-  state.logs.push(text);
-  state.logs = state.logs.slice(-MAX_LOG);
-}
-
-function inBounds(x, y) {
-  return x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT;
-}
-
-function findClosestEnemy() {
-  let best = null;
-  let bestDist = Infinity;
-  for (const enemy of state.enemies) {
-    const d = Math.abs(state.player.x - enemy.x) + Math.abs(state.player.y - enemy.y);
-    if (d < bestDist) {
-      bestDist = d;
-      best = enemy;
-    }
-  }
-  return best;
-}
-
-function doTurn(dx, dy) {
-  if (state.over) return;
-
-  const nx = state.player.x + dx;
-  const ny = state.player.y + dy;
-  if (!inBounds(nx, ny)) {
-    addLog('Bumped into a wall.');
-    render();
-    return;
-  }
-
-  state.player.x = nx;
-  state.player.y = ny;
-
-  const beforeCount = state.enemies.length;
-  state.enemies = state.enemies.filter((enemy) => !(enemy.x === nx && enemy.y === ny));
-  if (state.enemies.length < beforeCount) addLog('You cut down an enemy.');
-
-  for (const enemy of state.enemies) {
-    if (enemy.x < state.player.x) enemy.x += 1;
-    else if (enemy.x > state.player.x) enemy.x -= 1;
-    else if (enemy.y < state.player.y) enemy.y += 1;
-    else if (enemy.y > state.player.y) enemy.y -= 1;
-  }
-
-  const hits = state.enemies.filter((e) => e.x === state.player.x && e.y === state.player.y).length;
-  if (hits > 0) {
-    state.hp -= hits;
-    addLog(`You take ${hits} damage.`);
-  }
-
-  if (state.hp <= 0) {
-    state.over = true;
-    addLog('You were overrun. Press R to restart.');
-  } else if (state.enemies.length === 0) {
-    state.over = true;
-    addLog('Victory! You cleared the horde. Press R to restart.');
-  }
-
-  state.turn += 1;
-  render();
-}
-
-function render() {
-  const target = findClosestEnemy();
-  hudEl.textContent = `Turn ${state.turn} | HP ${state.hp} | Enemies ${state.enemies.length}`;
-
-  const cells = Array.from({ length: HEIGHT }, () => Array.from({ length: WIDTH }, () => '.'));
-  for (const enemy of state.enemies) cells[enemy.y][enemy.x] = 'e';
-  if (target) cells[target.y][target.x] = 't';
-  cells[state.player.y][state.player.x] = '@';
-
-  gridEl.innerHTML = cells
-    .map((row) =>
-      row
-        .map((ch) => {
-          if (ch === 'e') return '<span class="enemy-char">e</span>';
-          if (ch === 't') return '<span class="target-char">t</span>';
-          return ch;
-        })
-        .join(' ')
-    )
-    .join('\n');
-
-  logEl.innerHTML = state.logs.map((msg) => `<p class="log-line">${msg}</p>`).join('');
-}
-
-function moveByDirection(dir) {
-  if (dir === 'up') doTurn(0, -1);
-  else if (dir === 'down') doTurn(0, 1);
-  else if (dir === 'left') doTurn(-1, 0);
-  else if (dir === 'right') doTurn(1, 0);
-}
-
-function directionFromKey(key) {
-  if (key === 'arrowup' || key === 'w') return 'up';
-  if (key === 'arrowdown' || key === 's') return 'down';
-  if (key === 'arrowleft' || key === 'a') return 'left';
-  if (key === 'arrowright' || key === 'd') return 'right';
-  return null;
-}
-
-function findDirectionButton(eventTarget) {
-  return eventTarget.closest('button[data-dir]');
-}
-
-function handleDpadMove(button) {
-  if (!button) return;
-  moveByDirection(button.dataset.dir);
-}
-
-function setupKeyboardControls() {
-  document.addEventListener('keydown', (event) => {
-    const key = event.key.toLowerCase();
-    if (key === 'r') {
-      newGame();
-      return;
-    }
-
-    const direction = directionFromKey(key);
-    if (!direction) return;
-
-    if (event.repeat) return;
-    event.preventDefault();
-    moveByDirection(direction);
-  });
-}
-
-function setupDpadControls() {
-  let mostRecentPointerMoveAt = 0;
-
-  dpadEl.addEventListener('pointerdown', (event) => {
-    if (!event.isPrimary) return;
-    const button = findDirectionButton(event.target);
-    if (!button) return;
-
-    event.preventDefault();
-    mostRecentPointerMoveAt = Date.now();
-    handleDpadMove(button);
-  });
-
-  dpadEl.addEventListener('click', (event) => {
-    const button = findDirectionButton(event.target);
-    if (!button) return;
-
-    if (Date.now() - mostRecentPointerMoveAt < SYNTHETIC_CLICK_GUARD_MS) {
-      event.preventDefault();
-      return;
-    }
-
-    handleDpadMove(button);
-  });
-
-  dpadEl.addEventListener('contextmenu', (event) => {
-    event.preventDefault();
-  });
-}
-
-setupKeyboardControls();
-setupDpadControls();
-newGame();
-// ASCII Horde - proof-of-concept gameplay using a 40x30 text grid.
-// Turn order:
-// 1) Player moves one tile.
-// 2) Player auto-attacks the closest enemy (1 damage).
-// 3) Enemies move one tile toward player and may damage player on contact.
-
-const GRID_WIDTH = 40;
-const GRID_HEIGHT = 30;
+const WIDTH = 40;
+const HEIGHT = 30;
 const MAX_LOG_LINES = 4;
+const CLIP_SIZE = 3;
 const SPAWN_EVERY_TURNS = 2;
 
 const ENEMY_TYPES = {
-  W: { name: "Weak", maxHp: 1 },
-  M: { name: "Moderate", maxHp: 2 },
-  B: { name: "Brute", maxHp: 3 },
+  weak: { maxHp: 2, damage: 1, fullSymbol: "W", hurtSymbol: "w" },
+  moderate: { maxHp: 4, damage: 1, fullSymbol: "M", hurtSymbol: "m" },
+  brute: { maxHp: 7, damage: 2, fullSymbol: "B", hurtSymbol: "b" }
 };
 
-const elements = {
-  board: document.getElementById("board"),
+const els = {
+  grid: document.getElementById("grid"),
   hp: document.getElementById("hp"),
+  shots: document.getElementById("shots"),
   turn: document.getElementById("turn"),
   kills: document.getElementById("kills"),
   enemyCount: document.getElementById("enemy-count"),
-  log: document.getElementById("log"),
-  restart: document.getElementById("restart"),
+  log: document.getElementById("message-log"),
+  dpad: document.querySelector(".dpad"),
+  waitBtn: document.getElementById("wait-btn"),
+  reloadBtn: document.getElementById("reload-btn"),
+  restartBtn: document.getElementById("restart-btn")
 };
 
-let state;
+let game;
 
-function resetGame() {
-  state = {
-    player: {
-      x: Math.floor(GRID_WIDTH / 2),
-      y: Math.floor(GRID_HEIGHT / 2),
-      hp: 10,
-    },
-    enemies: [],
+function newGame() {
+  game = {
     turn: 0,
     kills: 0,
-    logs: [],
-    gameOver: false,
-    nextEnemyId: 1,
+    shots: CLIP_SIZE,
+    over: false,
+    logs: ["Survive the horde."],
+    player: { x: Math.floor(WIDTH / 2), y: Math.floor(HEIGHT / 2), hp: 10 },
+    walls: generateWalls(),
+    enemies: []
   };
-
-  addLog("Welcome to ASCII Horde. Move to begin.");
-  spawnEnemy();
-  spawnEnemy();
+  spawnEnemies(4);
   render();
 }
 
-function addLog(message) {
-  state.logs.unshift(message);
-  state.logs = state.logs.slice(0, MAX_LOG_LINES);
+function generateWalls() {
+  const walls = new Set();
+  for (let y = 1; y < HEIGHT - 1; y++) {
+    for (let x = 1; x < WIDTH - 1; x++) {
+      if (Math.random() < 0.12) walls.add(`${x},${y}`);
+      if (Math.random() < 0.025) {
+        walls.add(`${x},${y}`); walls.add(`${x + 1},${y}`); walls.add(`${x},${y + 1}`);
+      }
+    }
+  }
+  // Keep center area clear and walkable.
+  for (let y = gameCenterY() - 2; y <= gameCenterY() + 2; y++) {
+    for (let x = gameCenterX() - 2; x <= gameCenterX() + 2; x++) walls.delete(`${x},${y}`);
+  }
+  return walls;
 }
 
-function randomTypeKey() {
+function gameCenterX() { return Math.floor(WIDTH / 2); }
+function gameCenterY() { return Math.floor(HEIGHT / 2); }
+function inBounds(x, y) { return x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT; }
+function isWall(x, y) { return game.walls.has(`${x},${y}`); }
+function enemyAt(x, y) { return game.enemies.find((e) => e.x === x && e.y === y); }
+
+function addLog(text) {
+  game.logs.push(text);
+  game.logs = game.logs.slice(-MAX_LOG_LINES);
+}
+
+function randomEnemyType() {
   const roll = Math.random();
-  if (roll < 0.55) return "W";
-  if (roll < 0.85) return "M";
-  return "B";
+  if (roll < 0.5) return "weak";
+  if (roll < 0.83) return "moderate";
+  return "brute";
 }
 
-function spawnEnemy() {
-  const edge = Math.floor(Math.random() * 4);
-  let x = 0;
-  let y = 0;
-
-  if (edge === 0) {
-    x = Math.floor(Math.random() * GRID_WIDTH);
-    y = 0;
-  } else if (edge === 1) {
-    x = GRID_WIDTH - 1;
-    y = Math.floor(Math.random() * GRID_HEIGHT);
-  } else if (edge === 2) {
-    x = Math.floor(Math.random() * GRID_WIDTH);
-    y = GRID_HEIGHT - 1;
-  } else {
-    x = 0;
-    y = Math.floor(Math.random() * GRID_HEIGHT);
+function spawnEnemies(count) {
+  let spawned = 0;
+  let tries = 0;
+  while (spawned < count && tries < 150) {
+    tries++;
+    const fromEdge = Math.floor(Math.random() * 4);
+    const x = fromEdge % 2 === 0 ? Math.floor(Math.random() * WIDTH) : (fromEdge === 1 ? WIDTH - 1 : 0);
+    const y = fromEdge % 2 === 1 ? Math.floor(Math.random() * HEIGHT) : (fromEdge === 2 ? HEIGHT - 1 : 0);
+    if (isWall(x, y) || enemyAt(x, y) || (game.player.x === x && game.player.y === y)) continue;
+    const type = randomEnemyType();
+    game.enemies.push({ x, y, type, hp: ENEMY_TYPES[type].maxHp });
+    spawned++;
   }
+}
 
-  // If the spawn tile is occupied by the player or another enemy, skip spawn this turn.
-  if (
-    (state.player.x === x && state.player.y === y) ||
-    state.enemies.some((enemy) => enemy.x === x && enemy.y === y)
-  ) {
+function enemySymbol(enemy) {
+  const t = ENEMY_TYPES[enemy.type];
+  return enemy.hp === t.maxHp ? t.fullSymbol : t.hurtSymbol;
+}
+
+function resolvePlayerAction(action) {
+  if (game.over) return;
+
+  const valid = action();
+  if (!valid) {
+    render();
     return;
   }
 
-  const typeKey = randomTypeKey();
-  const config = ENEMY_TYPES[typeKey];
+  cleanupDeadEnemies();
+  enemiesTakeTurn();
+  if (!game.over && game.turn % SPAWN_EVERY_TURNS === 0) spawnEnemies(1);
+  checkGameOver();
+  render();
+}
 
-  state.enemies.push({
-    id: state.nextEnemyId++,
-    x,
-    y,
-    type: typeKey,
-    hp: config.maxHp,
-    maxHp: config.maxHp,
+function cleanupDeadEnemies() {
+  const before = game.enemies.length;
+  game.enemies = game.enemies.filter((e) => e.hp > 0);
+  const dead = before - game.enemies.length;
+  if (dead > 0) {
+    game.kills += dead;
+    addLog(`You defeated ${dead} foe${dead > 1 ? "s" : ""}.`);
+  }
+}
+
+function movePlayer(dx, dy) {
+  return () => {
+    const nx = game.player.x + dx;
+    const ny = game.player.y + dy;
+    if (!inBounds(nx, ny) || isWall(nx, ny)) {
+      addLog("A wall blocks your way.");
+      return false;
+    }
+    const enemy = enemyAt(nx, ny);
+    if (enemy) {
+      enemy.hp -= 1;
+      addLog(`You strike ${enemySymbol(enemy).toUpperCase()} for 1.`);
+    } else {
+      game.player.x = nx;
+      game.player.y = ny;
+    }
+    game.turn += 1;
+    return true;
+  };
+}
+
+function waitAction() {
+  resolvePlayerAction(() => {
+    game.turn += 1;
+    addLog("You wait.");
+    return true;
   });
-
-  addLog(`${config.name} enemy spawned at (${x}, ${y}).`);
 }
 
-function getDistance(a, b) {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-}
-
-function getClosestEnemy() {
-  if (state.enemies.length === 0) return null;
-
-  let bestEnemy = state.enemies[0];
-  let bestDistance = getDistance(state.player, bestEnemy);
-
-  for (const enemy of state.enemies) {
-    const distance = getDistance(state.player, enemy);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestEnemy = enemy;
+function reloadAction() {
+  resolvePlayerAction(() => {
+    if (game.shots === CLIP_SIZE) {
+      addLog("Your clip is already full.");
+      return false;
     }
-  }
-
-  return bestEnemy;
+    game.shots = CLIP_SIZE;
+    game.turn += 1;
+    addLog("Reloaded.");
+    return true;
+  });
 }
 
-function autoAttack() {
-  const target = getClosestEnemy();
-  if (!target) {
-    addLog("No enemies in range to target.");
-    return;
-  }
-
-  target.hp -= 1;
-  addLog(`You hit ${ENEMY_TYPES[target.type].name} for 1 damage.`);
-
-  if (target.hp <= 0) {
-    state.enemies = state.enemies.filter((enemy) => enemy.id !== target.id);
-    state.kills += 1;
-    addLog(`${ENEMY_TYPES[target.type].name} was defeated.`);
-  }
-}
-
-function moveEnemies() {
-  for (const enemy of state.enemies) {
-    const stepX = Math.sign(state.player.x - enemy.x);
-    const stepY = Math.sign(state.player.y - enemy.y);
-
-    // Prefer horizontal movement first, then vertical if needed.
-    let newX = enemy.x;
-    let newY = enemy.y;
-
-    if (stepX !== 0) {
-      newX += stepX;
-    } else if (stepY !== 0) {
-      newY += stepY;
+function tryShootEnemy(target) {
+  resolvePlayerAction(() => {
+    if (game.shots <= 0) {
+      addLog("Out of shots. Reload first.");
+      return false;
+    }
+    const shot = getShotInfo(target.x, target.y);
+    if (!shot.aligned) {
+      addLog(`No clear shot to ${enemySymbol(target).toUpperCase()}.`);
+      return false;
+    }
+    if (shot.blockedByWall) {
+      addLog("A wall blocks your shot.");
+      return false;
     }
 
-    enemy.x = newX;
-    enemy.y = newY;
+    target.hp -= 2;
+    game.shots -= 1;
+    game.turn += 1;
+    addLog(`You shoot ${enemySymbol(target).toUpperCase()} for 2.`);
+    return true;
+  });
+}
 
-    if (enemy.x === state.player.x && enemy.y === state.player.y) {
-      state.player.hp -= 1;
-      addLog(`${ENEMY_TYPES[enemy.type].name} hits you for 1 damage.`);
+function getShotInfo(tx, ty) {
+  const dx = tx - game.player.x;
+  const dy = ty - game.player.y;
+  const sx = Math.sign(dx);
+  const sy = Math.sign(dy);
+  const aligned = dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy);
+  if (!aligned) return { aligned: false, blockedByWall: false };
+
+  let x = game.player.x + sx;
+  let y = game.player.y + sy;
+  while (!(x === tx && y === ty)) {
+    if (isWall(x, y)) return { aligned: true, blockedByWall: true };
+    x += sx;
+    y += sy;
+  }
+  return { aligned: true, blockedByWall: false };
+}
+
+function enemiesTakeTurn() {
+  for (const enemy of game.enemies) {
+    const dx = game.player.x - enemy.x;
+    const dy = game.player.y - enemy.y;
+    const adjacent = Math.abs(dx) + Math.abs(dy) === 1;
+    if (adjacent || (dx === 0 && dy === 0)) {
+      game.player.hp -= ENEMY_TYPES[enemy.type].damage;
+      addLog(`${enemySymbol(enemy).toUpperCase()} hits you.`);
+      continue;
+    }
+
+    const options = [];
+    if (dx !== 0) options.push({ x: enemy.x + Math.sign(dx), y: enemy.y });
+    if (dy !== 0) options.push({ x: enemy.x, y: enemy.y + Math.sign(dy) });
+
+    for (const option of options) {
+      if (!inBounds(option.x, option.y) || isWall(option.x, option.y) || enemyAt(option.x, option.y)) continue;
+      if (option.x === game.player.x && option.y === game.player.y) continue;
+      enemy.x = option.x;
+      enemy.y = option.y;
+      break;
     }
   }
+}
 
-  if (state.player.hp <= 0) {
-    state.gameOver = true;
-    addLog("You were overrun. Game over! Press Restart.");
+function checkGameOver() {
+  if (game.player.hp <= 0) {
+    game.over = true;
+    addLog("You fall. Press Restart or Space.");
   }
 }
 
-function getEnemyGlyph(enemy) {
-  // Capital means full health; lowercase means injured.
-  return enemy.hp === enemy.maxHp ? enemy.type : enemy.type.toLowerCase();
-}
-
-function renderBoard() {
-  const closest = getClosestEnemy();
-  let html = "";
-
-  for (let y = 0; y < GRID_HEIGHT; y += 1) {
-    for (let x = 0; x < GRID_WIDTH; x += 1) {
-      if (state.player.x === x && state.player.y === y) {
-        html += "@";
-        continue;
-      }
-
-      const enemy = state.enemies.find((unit) => unit.x === x && unit.y === y);
-      if (enemy) {
-        const glyph = getEnemyGlyph(enemy);
-        if (closest && enemy.id === closest.id) {
-          html += `<span class=\"target\">${glyph}</span>`;
-        } else {
-          html += glyph;
-        }
-      } else {
-        html += ".";
-      }
-    }
-    if (y < GRID_HEIGHT - 1) {
-      html += "\n";
-    }
-  }
-
-  elements.board.innerHTML = html;
-}
-
-function renderHUD() {
-  elements.hp.textContent = Math.max(0, state.player.hp);
-  elements.turn.textContent = state.turn;
-  elements.kills.textContent = state.kills;
-  elements.enemyCount.textContent = state.enemies.length;
-}
-
-function renderLog() {
-  elements.log.innerHTML = "";
-
-  for (const line of state.logs) {
-    const item = document.createElement("li");
-    item.textContent = line;
-    elements.log.appendChild(item);
-  }
+function hoveredTarget() {
+  if (game.hoveredEnemyId === null || game.hoveredEnemyId === undefined || game.hoveredEnemyId < 0) return null;
+  return game.enemies[game.hoveredEnemyId] || null;
 }
 
 function render() {
-  renderBoard();
-  renderHUD();
-  renderLog();
-}
+  els.hp.textContent = Math.max(0, game.player.hp);
+  els.shots.textContent = `${game.shots}/${CLIP_SIZE}`;
+  els.turn.textContent = game.turn;
+  els.kills.textContent = game.kills;
+  els.enemyCount.textContent = game.enemies.length;
 
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function handleMove(dx, dy) {
-  if (state.gameOver) return;
-
-  const nextX = clamp(state.player.x + dx, 0, GRID_WIDTH - 1);
-  const nextY = clamp(state.player.y + dy, 0, GRID_HEIGHT - 1);
-
-  // Do not allow the player to move into an occupied enemy tile.
-  if (state.enemies.some((enemy) => enemy.x === nextX && enemy.y === nextY)) {
-    addLog("You cannot move into an occupied tile.");
-    render();
-    return;
+  const hover = hoveredTarget();
+  const lines = [];
+  for (let y = 0; y < HEIGHT; y++) {
+    const row = [];
+    for (let x = 0; x < WIDTH; x++) {
+      if (game.player.x === x && game.player.y === y) {
+        row.push('<span class="cell player">@</span>');
+        continue;
+      }
+      const enemy = enemyAt(x, y);
+      if (enemy) {
+        const isHover = hover && hover.x === x && hover.y === y;
+        row.push(`<span class="cell enemy clickable${isHover ? " target" : ""}" data-x="${x}" data-y="${y}">${enemySymbol(enemy)}</span>`);
+        continue;
+      }
+      row.push(isWall(x, y) ? '<span class="cell wall">#</span>' : '.');
+    }
+    lines.push(row.join(""));
   }
-
-  if (nextX === state.player.x && nextY === state.player.y) {
-    addLog("You bump into the edge of the map.");
-    render();
-    return;
-  }
-
-  state.player.x = nextX;
-  state.player.y = nextY;
-  state.turn += 1;
-
-  autoAttack();
-
-  if (!state.gameOver) {
-    moveEnemies();
-  }
-
-  if (!state.gameOver && state.turn % SPAWN_EVERY_TURNS === 0) {
-    spawnEnemy();
-  }
-
-  render();
+  els.grid.innerHTML = lines.join("\n");
+  els.log.innerHTML = game.logs.map((line) => `<p>${line}</p>`).join("");
 }
 
 function setupInput() {
-  window.addEventListener("keydown", (event) => {
+  document.addEventListener("keydown", (event) => {
     const key = event.key.toLowerCase();
-
-    if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
-      event.preventDefault();
-    }
-
-    if (key === "w" || key === "arrowup") handleMove(0, -1);
-    if (key === "s" || key === "arrowdown") handleMove(0, 1);
-    if (key === "a" || key === "arrowleft") handleMove(-1, 0);
-    if (key === "d" || key === "arrowright") handleMove(1, 0);
+    if (key === " " && game.over) return newGame();
+    if (key === "arrowup" || key === "w") return resolvePlayerAction(movePlayer(0, -1));
+    if (key === "arrowdown" || key === "s") return resolvePlayerAction(movePlayer(0, 1));
+    if (key === "arrowleft" || key === "a") return resolvePlayerAction(movePlayer(-1, 0));
+    if (key === "arrowright" || key === "d") return resolvePlayerAction(movePlayer(1, 0));
   });
 
-  elements.restart.addEventListener("click", resetGame);
+  els.dpad.addEventListener("click", (event) => {
+    const btn = event.target.closest("button[data-dir]");
+    if (!btn) return;
+    const dir = btn.dataset.dir;
+    if (dir === "up") resolvePlayerAction(movePlayer(0, -1));
+    if (dir === "down") resolvePlayerAction(movePlayer(0, 1));
+    if (dir === "left") resolvePlayerAction(movePlayer(-1, 0));
+    if (dir === "right") resolvePlayerAction(movePlayer(1, 0));
+  });
+
+  els.waitBtn.addEventListener("click", waitAction);
+  els.reloadBtn.addEventListener("click", reloadAction);
+  els.restartBtn.addEventListener("click", newGame);
+
+  els.grid.addEventListener("mousemove", (event) => {
+    const span = event.target.closest(".enemy");
+    game.hoveredEnemyId = null;
+    if (span) {
+      const x = Number(span.dataset.x);
+      const y = Number(span.dataset.y);
+      game.hoveredEnemyId = game.enemies.findIndex((e) => e.x === x && e.y === y);
+    }
+    render();
+  });
+
+  els.grid.addEventListener("click", (event) => {
+    const span = event.target.closest(".enemy");
+    if (!span) return;
+    const target = enemyAt(Number(span.dataset.x), Number(span.dataset.y));
+    if (target) tryShootEnemy(target);
+  });
 }
 
 setupInput();
-resetGame();
+newGame();
