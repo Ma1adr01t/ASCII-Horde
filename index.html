@@ -1,1 +1,35 @@
-index.html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ASCII Horde</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <h1>ASCII Horde</h1>
+
+      <section id="hud" class="hud" aria-live="polite"></section>
+
+      <pre id="grid" class="grid" aria-label="Game grid" role="img"></pre>
+
+      <section class="controls-help">
+        <p>Move with Arrow Keys or WASD. Press R to restart.</p>
+      </section>
+
+      <section id="message-log" class="message-log" aria-live="polite"></section>
+
+      <section class="dpad-wrap" aria-label="On-screen controls">
+        <div class="dpad" role="group" aria-label="Directional pad">
+          <button class="dpad-btn up" data-dir="up" aria-label="Move up">▲</button>
+          <button class="dpad-btn left" data-dir="left" aria-label="Move left">◀</button>
+          <button class="dpad-btn right" data-dir="right" aria-label="Move right">▶</button>
+          <button class="dpad-btn down" data-dir="down" aria-label="Move down">▼</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="main.js"></script>
+  </body>
+</html>
