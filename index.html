@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ASCII Horde - Tactical Survivors Prototype</title>
+    <title>ASCII Horde</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -11,18 +11,20 @@
       <h1>ASCII Horde</h1>
 
       <section class="hud" aria-live="polite">
-        <span>HP: <strong id="hp">10</strong></span>
+        <span>HP: <strong id="hp">10</strong>/<strong id="max-hp">10</strong></span>
         <span>Shots: <strong id="shots">3/3</strong></span>
         <span>Turn: <strong id="turn">0</strong></span>
         <span>Kills: <strong id="kills">0</strong></span>
         <span>Enemies: <strong id="enemy-count">0</strong></span>
       </section>
 
-      <section class="grid-wrap" aria-label="ASCII battlefield">
+      <section class="grid-wrap" aria-label="ASCII dungeon">
         <pre id="grid" class="grid" role="img" aria-label="40 by 30 ASCII grid"></pre>
       </section>
 
       <section id="message-log" class="message-log" aria-live="polite"></section>
+
+      <section id="inventory" class="inventory" aria-live="polite"></section>
 
       <section class="controls" aria-label="Controls">
         <div class="dpad" role="group" aria-label="Directional pad">
@@ -38,9 +40,14 @@
         </div>
       </section>
 
-      <p class="help">Move with WASD or Arrow Keys. Click an enemy to shoot. Press Space to restart after game over.</p>
+      <section id="chest-prompt" class="chest-prompt hidden" aria-live="assertive">
+        <p id="chest-text"></p>
+        <div>
+          <button id="take-btn" class="btn" type="button">Take</button>
+          <button id="leave-btn" class="btn" type="button">Leave</button>
+        </div>
+      </section>
     </main>
-
     <script src="main.js"></script>
   </body>
 </html>
