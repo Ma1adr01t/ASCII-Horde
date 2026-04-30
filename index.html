@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ASCII Horde</title>
 
-    <link rel="stylesheet" href="./style.css?v=bigmap1" />
+    <link rel="stylesheet" href="./style.css?v=bigmap2" />
 
     <style>
       * { box-sizing: border-box; }
@@ -126,8 +126,14 @@
       .wall { color: #aaaaaa; }
 
       .door {
+        color: #aaaaaa;
         font-weight: 700;
       }
+
+      .door.red { color: #ff6666; }
+      .door.blue { color: #66aaff; }
+      .door.yellow { color: #ffee66; }
+      .door.green { color: #77ff77; }
 
       .exit {
         font-weight: 700;
@@ -144,9 +150,14 @@
       }
 
       .chest {
-        color: #66ccff;
+        color: #aaaaaa;
         font-weight: 700;
       }
+
+      .chest.red { color: #ff6666; }
+      .chest.blue { color: #66aaff; }
+      .chest.yellow { color: #ffee66; }
+      .chest.green { color: #77ff77; }
 
       .ammo {
         color: #99ddff;
@@ -361,7 +372,7 @@
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: bigmap-floorplan-1</div>
+        <div id="build" class="build">Build: bigmap-keys-2</div>
       </header>
 
       <section class="hud" aria-live="polite">
@@ -435,6 +446,6 @@
       </section>
     </main>
 
-    <script src="./main.js?v=bigmap1"></script>
+    <script src="./main.js?v=bigmap2"></script>
   </body>
 </html>
