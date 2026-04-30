@@ -34,6 +34,7 @@ function wireElements() {
     grid: document.getElementById("grid"),
     level: document.getElementById("level"),
     condition: document.getElementById("condition"),
+    mode: document.getElementById("mode"),
     shots: document.getElementById("shots"),
     turn: document.getElementById("turn"),
     kills: document.getElementById("kills"),
@@ -50,6 +51,9 @@ function wireElements() {
     nextLevelBtn: document.getElementById("next-level-btn"),
     levelRestartBtn: document.getElementById("level-restart-btn"),
     dpad: document.querySelector(".dpad"),
+    targetBtn: document.getElementById("target-btn"),
+    aimBtn: document.getElementById("aim-btn"),
+    fireBtn: document.getElementById("fire-btn"),
     waitBtn: document.getElementById("wait-btn"),
     reloadBtn: document.getElementById("reload-btn"),
     restartBtn: document.getElementById("restart-btn")
@@ -99,6 +103,7 @@ function startNextLevel() {
 
 function startLevel(carry) {
   const map = generateDungeon();
+
   game = {
     level: carry.level,
     totalKills: carry.totalKills || 0,
@@ -114,6 +119,8 @@ function startLevel(carry) {
     enemies: [],
     inventory: structuredCloneInventory(carry.inventory || []),
     pendingChest: null,
+    selectedTargetKey: null,
+    aiming: false,
     player: { x: map.start.x, y: map.start.y, hp: carry.hp, maxHp: carry.maxHp },
     shots: carry.shots,
     maxShots: carry.maxShots,
@@ -132,6 +139,7 @@ function startLevel(carry) {
   recalcVisibility();
   closeChestOverlay();
   closeLevelOverlay();
+  ensureTargetValid(false);
   render();
 }
 
@@ -167,6 +175,7 @@ function generateDungeon() {
     for (let i = 1; i < rooms.length; i++) {
       const a = rooms[i - 1];
       const b = rooms[i];
+
       if (Math.random() < 0.5) {
         carveCorridor(a.cx, a.cy, b.cx, a.cy, walls, floors);
         carveCorridor(b.cx, a.cy, b.cx, b.cy, walls, floors);
@@ -323,6 +332,7 @@ function shuffle(arr) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
+
   return arr;
 }
 
@@ -410,10 +420,100 @@ function addLog(message) {
   game.logs = game.logs.slice(-MAX_LOG_LINES);
 }
 
+function visibleShootableEnemies() {
+  return game.enemies
+    .filter((enemy) => isShootable(enemy))
+    .sort((a, b) => {
+      const da = Math.abs(a.x - game.player.x) + Math.abs(a.y - game.player.y);
+      const db = Math.abs(b.x - game.player.x) + Math.abs(b.y - game.player.y);
+      return da - db;
+    });
+}
+
+function isShootable(enemy) {
+  const targetKey = key(enemy.x, enemy.y);
+  if (!game.visible.has(targetKey)) return false;
+
+  const dx = enemy.x - game.player.x;
+  const dy = enemy.y - game.player.y;
+  const aligned = dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy);
+
+  return aligned && hasLine(game.player.x, game.player.y, enemy.x, enemy.y, true);
+}
+
+function ensureTargetValid(autoSelect = true) {
+  const targets = visibleShootableEnemies();
+
+  if (game.selectedTargetKey && targets.some((enemy) => key(enemy.x, enemy.y) === game.selectedTargetKey)) {
+    return;
+  }
+
+  game.selectedTargetKey = autoSelect && targets.length ? key(targets[0].x, targets[0].y) : null;
+}
+
+function cycleTarget() {
+  if (game.over || game.pendingChest || game.won) return;
+
+  const targets = visibleShootableEnemies();
+
+  if (!targets.length) {
+    game.selectedTargetKey = null;
+    addLog("No target in sight.");
+    render();
+    return;
+  }
+
+  const currentIndex = targets.findIndex((enemy) => key(enemy.x, enemy.y) === game.selectedTargetKey);
+  const next = targets[(currentIndex + 1) % targets.length];
+
+  game.selectedTargetKey = key(next.x, next.y);
+  addLog(`Target selected: ${enemySymbol(next)}.`);
+  render();
+}
+
+function aimWeapon() {
+  resolveAction(() => {
+    if (game.aiming) {
+      addLog("Your weapon is already raised.");
+      return false;
+    }
+
+    ensureTargetValid(true);
+    game.aiming = true;
+    game.turn++;
+    addLog("You raise your weapon.");
+    return true;
+  });
+}
+
+function fireSelectedTarget() {
+  const target = game.selectedTargetKey ? getEnemyByKey(game.selectedTargetKey) : null;
+
+  if (!game.aiming) {
+    addLog("You need to aim first.");
+    render();
+    return;
+  }
+
+  if (!target || !isShootable(target)) {
+    addLog("No target selected.");
+    ensureTargetValid(true);
+    render();
+    return;
+  }
+
+  tryShootAt(target.x, target.y);
+}
+
+function getEnemyByKey(posKey) {
+  return game.enemies.find((enemy) => key(enemy.x, enemy.y) === posKey);
+}
+
 function resolveAction(action) {
   if (game.over || game.pendingChest) return;
 
   const valid = action();
+
   if (!valid) {
     render();
     return;
@@ -427,6 +527,7 @@ function resolveAction(action) {
 
   cleanupDead();
   recalcVisibility();
+  ensureTargetValid(false);
   checkEnd();
   render();
 }
@@ -441,22 +542,27 @@ function move(dx, dy) {
     const ny = game.player.y + dy;
     const p = key(nx, ny);
 
+    game.aiming = false;
+
     if (!inBounds(nx, ny) || game.walls.has(p)) {
       addLog("A wall blocks your way.");
       return false;
     }
 
     const door = doorAt(nx, ny);
+
     if (door && door.locked) {
       if (!consumeKey()) {
         addLog("The door is locked. You need a key.");
         return false;
       }
+
       door.locked = false;
       addLog("Your key turns in the lock. The door opens.");
     }
 
     const foe = enemyAt(nx, ny);
+
     if (foe) {
       foe.hp -= 1;
       addLog(foe.hp > 0 ? "You shove into the enemy. It staggers, but holds." : "You crush the weakened enemy at close range.");
@@ -509,27 +615,19 @@ function tryShootAt(x, y) {
     }
 
     const foe = enemyAt(x, y);
+
     if (!foe) {
       addLog("No visible target.");
       return false;
     }
 
-    if (game.shots <= 0) {
-      addLog(game.reserveAmmo > 0 ? "Your magazine is empty. Reload." : "Your weapon clicks dry. No ammunition remains.");
-      return false;
-    }
-
-    const dx = x - game.player.x;
-    const dy = y - game.player.y;
-    const aligned = dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy);
-
-    if (!aligned) {
+    if (!isShootable(foe)) {
       addLog("No clear shot.");
       return false;
     }
 
-    if (!hasLine(game.player.x, game.player.y, x, y, true)) {
-      addLog("A wall swallows the line of fire.");
+    if (game.shots <= 0) {
+      addLog(game.reserveAmmo > 0 ? "Your magazine is empty. Reload." : "Your weapon clicks dry. No ammunition remains.");
       return false;
     }
 
@@ -556,6 +654,8 @@ function tryShootAt(x, y) {
 
 function reload() {
   resolveAction(() => {
+    game.aiming = false;
+
     if (game.shots === game.maxShots) {
       addLog("Your magazine is already full.");
       return false;
@@ -581,7 +681,7 @@ function reload() {
 function waitTurn() {
   resolveAction(() => {
     game.turn++;
-    addLog("You hold your ground.");
+    addLog(game.aiming ? "You hold your aim." : "You hold your ground.");
     return true;
   });
 }
@@ -827,6 +927,7 @@ function checkEnd() {
   if (game.player.hp <= 0) {
     game.player.hp = 0;
     game.over = true;
+    game.aiming = false;
     addLog("You fall. Press Restart or Space.");
   }
 }
@@ -838,6 +939,9 @@ function render() {
   el.condition.textContent = conditionLabel(playerCondition);
   el.condition.className = `condition ${playerCondition}`;
 
+  el.mode.textContent = game.aiming ? "Aim" : "Move";
+  el.mode.className = game.aiming ? "aiming" : "moving";
+
   el.shots.textContent = `${game.shots}/${game.reserveAmmo}`;
   el.turn.textContent = game.turn;
   el.kills.textContent = game.kills;
@@ -847,7 +951,11 @@ function render() {
 
   for (let y = 0; y < HEIGHT; y++) {
     const row = [];
-    for (let x = 0; x < WIDTH; x++) row.push(renderCell(x, y));
+
+    for (let x = 0; x < WIDTH; x++) {
+      row.push(renderCell(x, y));
+    }
+
     rows.push(row.join(""));
   }
 
@@ -865,9 +973,11 @@ function renderCell(x, y) {
   if (game.player.x === x && game.player.y === y) return cell("@", x, y, "player");
 
   const foe = enemyAt(x, y);
+
   if (foe && visible) {
     const c = healthCondition(foe.hp, ENEMY_MAX_HP);
-    return cell(enemySymbol(foe), x, y, `enemy ${c}`);
+    const targetClass = game.selectedTargetKey === p ? " target" : "";
+    return cell(enemySymbol(foe), x, y, `enemy ${c}${targetClass}`);
   }
 
   if (visible) {
@@ -946,6 +1056,9 @@ function setup() {
     if (k === "s" || k === "arrowdown") move(0, 1);
     if (k === "a" || k === "arrowleft") move(-1, 0);
     if (k === "d" || k === "arrowright") move(1, 0);
+    if (k === "t") cycleTarget();
+    if (k === "f") fireSelectedTarget();
+    if (k === "r") reload();
   });
 
   el.dpad.addEventListener("click", (event) => {
@@ -955,6 +1068,10 @@ function setup() {
     const [dx, dy] = DIRS[button.dataset.dir];
     move(dx, dy);
   });
+
+  el.targetBtn.addEventListener("click", cycleTarget);
+  el.aimBtn.addEventListener("click", aimWeapon);
+  el.fireBtn.addEventListener("click", fireSelectedTarget);
 
   el.waitBtn.addEventListener("click", () => {
     if (!game.pendingChest && !game.won) waitTurn();
@@ -975,7 +1092,9 @@ function setup() {
     if (!target || game.pendingChest || game.won) return;
 
     event.preventDefault();
-    tryShootAt(Number(target.dataset.x), Number(target.dataset.y));
+    game.selectedTargetKey = key(Number(target.dataset.x), Number(target.dataset.y));
+    addLog("Target marked.");
+    render();
   });
 
   el.inventory.addEventListener("click", (event) => {
