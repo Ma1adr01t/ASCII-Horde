@@ -10,26 +10,40 @@
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: clean-rebuild-1</div>
+        <div id="build" class="build">Build: ammo-memory-levels-1</div>
       </header>
 
       <section class="hud" aria-live="polite">
-        <span>HP: <strong id="hp">10</strong>/<strong id="max-hp">10</strong></span>
-        <span>Shots: <strong id="shots">3/3</strong></span>
+        <span>Floor: <strong id="level">1</strong></span>
+        <span>Condition: <strong id="condition" class="condition healthy">Healthy</strong></span>
+        <span>Mag: <strong id="shots">6/6</strong></span>
+        <span>Reserve: <strong id="reserve-ammo">12</strong></span>
         <span>Turn: <strong id="turn">0</strong></span>
         <span>Kills: <strong id="kills">0</strong></span>
         <span>Enemies: <strong id="enemy-count">0</strong></span>
+        <span>Target: <strong id="target-condition" class="condition none">None</strong></span>
       </section>
 
       <section class="grid-wrap" aria-label="ASCII dungeon">
         <pre id="grid" class="grid" role="img" aria-label="40 by 30 ASCII grid"></pre>
 
         <div id="chest-overlay" class="chest-overlay hidden" aria-live="assertive">
-          <div class="chest-modal">
+          <div class="modal">
             <p id="chest-text">Found: Item</p>
-            <div class="chest-actions">
+            <div class="modal-actions">
               <button id="take-btn" class="btn" type="button">Take</button>
               <button id="leave-btn" class="btn" type="button">Leave</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="level-overlay" class="chest-overlay hidden" aria-live="assertive">
+          <div class="modal">
+            <h2>Level Complete</h2>
+            <p id="level-text">You escaped.</p>
+            <div class="modal-actions">
+              <button id="next-level-btn" class="btn" type="button">Next Level</button>
+              <button id="level-restart-btn" class="btn" type="button">Restart</button>
             </div>
           </div>
         </div>
@@ -55,7 +69,7 @@
       </section>
 
       <section class="legend">
-        <p><strong>@</strong> player · <strong>H/h</strong> enemy · <strong>#</strong> wall · <strong>D</strong> door · <strong>C</strong> chest · <strong>E</strong> exit · <strong>.</strong> unseen</p>
+        <p><strong>@</strong> player · <strong>H/h</strong> enemy · <strong>#</strong> wall · <strong>D</strong> door · <strong>C</strong> chest · <strong>a</strong> ammo · <strong>E</strong> exit · <strong>.</strong> unknown</p>
       </section>
     </main>
 
