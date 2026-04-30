@@ -32,20 +32,120 @@ function newGame() {
 }
 
 function generateDungeon() {
-  const walls = new Set(); const floors = new Set(); const rooms = [];
-  for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
-  for (let i = 0; i < 8; i++) {
-    const rw = 5 + Math.floor(Math.random() * 6), rh = 4 + Math.floor(Math.random() * 5);
-    const rx = 1 + Math.floor(Math.random() * (WIDTH - rw - 2)), ry = 1 + Math.floor(Math.random() * (HEIGHT - rh - 2));
-    const overlaps = rooms.some((r) => rx < r.x + r.w + 1 && rx + rw + 1 > r.x && ry < r.y + r.h + 1 && ry + rh + 1 > r.y);
-    if (overlaps) continue;
-    const room = { x: rx, y: ry, w: rw, h: rh, cx: rx + Math.floor(rw / 2), cy: ry + Math.floor(rh / 2) }; rooms.push(room);
-    for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) { walls.delete(key(x, y)); floors.add(key(x, y)); }
+  // Safety retry: guarantee enough rooms so rendering/game start cannot fail.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const walls = new Set(); const floors = new Set(); const rooms = [];
+    for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
+    for (let i = 0; i < 10; i++) {
+      const rw = 5 + Math.floor(Math.random() * 6), rh = 4 + Math.floor(Math.random() * 5);
+      const rx = 1 + Math.floor(Math.random() * (WIDTH - rw - 2)), ry = 1 + Math.floor(Math.random() * (HEIGHT - rh - 2));
+      const overlaps = rooms.some((r) => rx < r.x + r.w + 1 && rx + rw + 1 > r.x && ry < r.y + r.h + 1 && ry + rh + 1 > r.y);
+      if (overlaps) continue;
+      const room = { x: rx, y: ry, w: rw, h: rh, cx: rx + Math.floor(rw / 2), cy: ry + Math.floor(rh / 2) }; rooms.push(room);
+      for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) { walls.delete(key(x, y)); floors.add(key(x, y)); }
+    }
+    if (rooms.length < 2) continue;
+    for (let i = 1; i < rooms.length; i++) {
+      const a = rooms[i - 1], b = rooms[i];
+      carveCorridor(a.cx, a.cy, b.cx, a.cy, walls, floors);
+      carveCorridor(b.cx, a.cy, b.cx, b.cy, walls, floors);
+    }
+    const start = { x: rooms[0].cx, y: rooms[0].cy };
+    const exitRoom = rooms[rooms.length - 1];
+    const exit = { x: exitRoom.cx, y: exitRoom.cy };
+    const doors = placeDoors(floors, walls, start, exit);
+    const chests = placeChests(floors, doors, start, exit, rooms);
+    return { walls, floors, start, exit, doors, chests };
   }
-  for (let i = 1; i < rooms.length; i++) {
-    const a = rooms[i - 1], b = rooms[i];
-    carveCorridor(a.cx, a.cy, b.cx, a.cy, walls, floors);
-    carveCorridor(b.cx, a.cy, b.cx, b.cy, walls, floors);
+
+  // Final fallback room so play area is always visible.
+  const walls = new Set(); const floors = new Set();
+  for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
+  for (let y = 5; y < HEIGHT - 5; y++) for (let x = 5; x < WIDTH - 5; x++) { walls.delete(key(x, y)); floors.add(key(x, y)); }
+  const start = { x: 8, y: 8 };
+  const exit = { x: WIDTH - 9, y: HEIGHT - 9 };
+  return { walls, floors, start, exit, doors: [], chests: [] };
+}
+
+// Hallways are carved two tiles wide to give dodging space.
+function carveTile(x, y, walls, floors) { if (!inBounds(x, y)) return; walls.delete(key(x, y)); floors.add(key(x, y)); }
+function carveCorridor(x1, y1, x2, y2, walls, floors) {
+  for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) {
+    carveTile(x, y1, walls, floors);
+    carveTile(x, y1 + 1, walls, floors);
+  }
+  for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) {
+    carveTile(x2, y, walls, floors);
+    carveTile(x2 + 1, y, walls, floors);
+  }
+}
+
+function placeDoors(floors, walls, start, exit) {
+  const doors = [];
+  for (const pos of floors) {
+    const [x, y] = pos.split(",").map(Number);
+    if ((x === start.x && y === start.y) || (x === exit.x && y === exit.y)) continue;
+    const n = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]].map(([a, b]) => walls.has(key(a, b)));
+    if ((n[0] && n[1] && !n[2] && !n[3]) || (!n[0] && !n[1] && n[2] && n[3])) {
+      if (Math.random() < 0.04) doors.push({ x, y, locked: Math.random() < 0.45 });
+    }
+  }
+  return doors.slice(0, 5);
+}
+
+function isReachable(floors, doors, start, target, canOpenLocked) {
+  const seen = new Set([key(start.x, start.y)]);
+  const q = [[start.x, start.y]];
+  while (q.length) {
+    const [x, y] = q.shift();
+    if (x === target.x && y === target.y) return true;
+    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+      const k = key(nx, ny);
+      if (!inBounds(nx, ny) || seen.has(k) || !floors.has(k)) continue;
+      const door = doors.find((d) => d.x === nx && d.y === ny);
+      if (door && door.locked && !canOpenLocked) continue;
+      seen.add(k); q.push([nx, ny]);
+    }
+  }
+  return false;
+}
+
+function placeChests(floors, doors, start, exit, rooms) {
+  const doorSet = new Set(doors.map((d) => key(d.x, d.y)));
+  const reachableWithoutKeys = [...floors].filter((p) => {
+    const [x, y] = p.split(",").map(Number);
+    return isReachable(floors, doors, start, { x, y }, false);
+  });
+
+  // Rare chest placement: only 1 to 3 per level.
+  const chestCount = Math.max(1, Math.min(3, Math.floor(rooms.length / 3) + (Math.random() < 0.45 ? 1 : 0)));
+  const pool = reachableWithoutKeys.filter((p) => !doorSet.has(p) && p !== key(start.x, start.y) && p !== key(exit.x, exit.y));
+  const chests = [];
+
+  // Guaranteed key placement logic: add at least one key per locked door in early reachable tiles.
+  const lockedDoors = doors.filter((d) => d.locked).length;
+  const requiredKeys = lockedDoors;
+  const early = pool.filter((p) => {
+    const [x, y] = p.split(",").map(Number);
+    return Math.abs(x - start.x) + Math.abs(y - start.y) <= 14;
+  });
+
+  for (let i = 0; i < requiredKeys && pool.length; i++) {
+    const candidates = early.length ? early : pool;
+    const idx = Math.floor(Math.random() * candidates.length);
+    const picked = candidates[idx];
+    const [x, y] = picked.split(",").map(Number);
+    chests.push({ x, y, item: "Key" });
+    removeFromArray(pool, picked);
+    removeFromArray(early, picked);
+  }
+
+  while (chests.length < chestCount && pool.length) {
+    const idx = Math.floor(Math.random() * pool.length);
+    const p = pool.splice(idx, 1)[0];
+    const [x, y] = p.split(",").map(Number);
+    const item = weightedChestItem(chests);
+    chests.push({ x, y, item });
   }
   const start = { x: rooms[0].cx, y: rooms[0].cy };
   const exitRoom = rooms[rooms.length - 1];
