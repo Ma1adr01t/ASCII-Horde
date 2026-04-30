@@ -15,11 +15,31 @@
         <span>Shots: <strong id="shots">3/3</strong></span>
         <span>Turn: <strong id="turn">0</strong></span>
         <span>Kills: <strong id="kills">0</strong></span>
-        <span>Enemies: <strong id="enemy-count">0</strong></span>
-      </section>
+              </section>
 
       <section class="grid-wrap" aria-label="ASCII dungeon">
         <pre id="grid" class="grid" role="img" aria-label="40 by 30 ASCII grid"></pre>
+        <div id="chest-overlay" class="chest-overlay hidden" aria-live="assertive">
+          <div class="chest-modal">
+            <p id="chest-text"></p>
+            <div class="chest-actions">
+              <button id="take-btn" class="btn" type="button">Take</button>
+              <button id="leave-btn" class="btn" type="button">Leave</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <section class="legend" aria-label="Map legend">
+        <strong>Legend:</strong>
+        <span>@ = You</span>
+        <span>H/h = Enemy (healthy/injured)</span>
+        <span>C = Chest</span>
+        <span>D = Door (locked/unlocked)</span>
+        <span>E = Exit</span>
+        <span># = Wall</span>
+        <span>. = Unseen area</span>
       </section>
 
       <section id="message-log" class="message-log" aria-live="polite"></section>
@@ -37,14 +57,6 @@
           <button id="wait-btn" class="btn" type="button">Wait</button>
           <button id="reload-btn" class="btn" type="button">Reload</button>
           <button id="restart-btn" class="btn" type="button">Restart</button>
-        </div>
-      </section>
-
-      <section id="chest-prompt" class="chest-prompt hidden" aria-live="assertive">
-        <p id="chest-text"></p>
-        <div>
-          <button id="take-btn" class="btn" type="button">Take</button>
-          <button id="leave-btn" class="btn" type="button">Leave</button>
         </div>
       </section>
     </main>
