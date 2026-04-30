@@ -103,7 +103,7 @@ function startNextLevel() {
     reserveAmmo: game.reserveAmmo + 3,
     shotDamage: game.shotDamage,
     inventory: game.inventory,
-    keys: game.keys,
+    keys: [],
     totalKills: game.totalKills
   });
 }
@@ -143,7 +143,7 @@ function startLevel(carry) {
   };
 
   recalcVisibility();
-  spawnEnemies(Math.min(4 + game.level, enemyCap()));
+  spawnEnemies(startingEnemyCount());
   recalcVisibility();
   closeChestOverlay();
   closeLevelOverlay();
@@ -469,6 +469,21 @@ function roomIndexForPoint(rooms, point) {
   return bestIndex;
 }
 
+function roomAt(x, y) {
+  return game.rooms.find((room) =>
+    x >= room.x &&
+    x < room.x + room.w &&
+    y >= room.y &&
+    y < room.y + room.h
+  ) || null;
+}
+
+function sameRoom(a, b) {
+  const roomA = roomAt(a.x, a.y);
+  const roomB = roomAt(b.x, b.y);
+  return Boolean(roomA && roomB && roomA === roomB);
+}
+
 function randomFloorInRoom(room, blocked) {
   const spots = [];
 
@@ -606,8 +621,20 @@ function pickupAt(x, y) {
   return game.pickups.find((p) => p.x === x && p.y === y);
 }
 
+function enemyMaxHp() {
+  return ENEMY_MAX_HP + Math.floor((game.level - 1) / 2);
+}
+
+function enemyDamage() {
+  return ENEMY_DAMAGE + Math.floor((game.level - 1) / 4);
+}
+
+function startingEnemyCount() {
+  return Math.min(4 + game.level, enemyCap());
+}
+
 function enemySymbol(enemy) {
-  return enemy.hp === ENEMY_MAX_HP ? "H" : "h";
+  return enemy.hp === enemy.maxHp ? "H" : "h";
 }
 
 function healthCondition(current, max) {
@@ -656,9 +683,15 @@ function isShootable(enemy) {
   const targetKey = key(enemy.x, enemy.y);
   if (!game.visible.has(targetKey)) return false;
 
+  const shooter = { x: game.player.x, y: game.player.y };
+  const target = { x: enemy.x, y: enemy.y };
   const dx = enemy.x - game.player.x;
   const dy = enemy.y - game.player.y;
   const aligned = dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy);
+
+  if (sameRoom(shooter, target)) {
+    return hasLine(game.player.x, game.player.y, enemy.x, enemy.y, true);
+  }
 
   return aligned && hasLine(game.player.x, game.player.y, enemy.x, enemy.y, true);
 }
@@ -755,7 +788,7 @@ function resolveAction(action) {
 }
 
 function enemyCap() {
-  return Math.min(BASE_ENEMY_CAP + Math.floor(game.level / 2), 12);
+  return Math.min(BASE_ENEMY_CAP + Math.floor((game.level - 1) / 2), 14);
 }
 
 function move(dx, dy) {
@@ -880,7 +913,7 @@ function tryShootAt(x, y) {
     foe.hp -= game.shotDamage;
 
     if (foe.hp > 0) {
-      const condition = conditionLabel(healthCondition(foe.hp, ENEMY_MAX_HP)).toLowerCase();
+      const condition = conditionLabel(healthCondition(foe.hp, foe.maxHp)).toLowerCase();
       addLog(`Your shot hits the enemy. It persists, now ${condition}.`);
     } else {
       addLog("Your shot drops the enemy into the dark.");
@@ -932,7 +965,7 @@ function enemiesTurn() {
     const dy = game.player.y - enemy.y;
 
     if (Math.abs(dx) + Math.abs(dy) === 1) {
-      applyDamage(ENEMY_DAMAGE);
+      applyDamage(enemyDamage());
       attacks++;
       continue;
     }
@@ -982,7 +1015,8 @@ function spawnEnemies(count) {
 
   while (spawned < count && candidates.length && game.enemies.length < enemyCap()) {
     const pick = candidates.splice(randInt(0, Math.min(12, candidates.length - 1)), 1)[0];
-    game.enemies.push({ x: pick.x, y: pick.y, hp: ENEMY_MAX_HP });
+    const maxHp = enemyMaxHp();
+    game.enemies.push({ x: pick.x, y: pick.y, hp: maxHp, maxHp });
     spawned++;
   }
 }
@@ -1205,7 +1239,7 @@ function renderCell(x, y) {
   const foe = enemyAt(x, y);
 
   if (foe && visible) {
-    const c = healthCondition(foe.hp, ENEMY_MAX_HP);
+    const c = healthCondition(foe.hp, foe.maxHp);
     const targetClass = game.selectedTargetKey === p ? " target" : "";
     return cell(enemySymbol(foe), x, y, `enemy ${c}${targetClass}`);
   }
