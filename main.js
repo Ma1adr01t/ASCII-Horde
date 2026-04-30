@@ -1,4 +1,4 @@
-const WIDTH = 40;
+const WIDTH = 54;
 const HEIGHT = 30;
 const MAX_LOG_LINES = 4;
 const VIS_RADIUS = 10;
@@ -35,11 +35,9 @@ function wireElements() {
     level: document.getElementById("level"),
     condition: document.getElementById("condition"),
     shots: document.getElementById("shots"),
-    reserveAmmo: document.getElementById("reserve-ammo"),
     turn: document.getElementById("turn"),
     kills: document.getElementById("kills"),
     enemyCount: document.getElementById("enemy-count"),
-    targetCondition: document.getElementById("target-condition"),
     log: document.getElementById("message-log"),
     inventory: document.getElementById("inventory"),
     build: document.getElementById("build"),
@@ -127,7 +125,6 @@ function startLevel(carry) {
     over: false,
     won: false,
     logs: [`Floor ${carry.level}. Find the exit key, then escape.`],
-    hoverKey: null
   };
 
   recalcVisibility();
@@ -749,21 +746,11 @@ function render() {
   const playerCondition = healthCondition(game.player.hp, game.player.maxHp);
   el.condition.textContent = conditionLabel(playerCondition);
   el.condition.className = `condition ${playerCondition}`;
-  el.shots.textContent = `${game.shots}/${game.maxShots}`;
-  el.reserveAmmo.textContent = game.reserveAmmo;
+ el.shots.textContent = `${game.shots}/${game.reserveAmmo}`;
   el.turn.textContent = game.turn;
   el.kills.textContent = game.kills;
   el.enemyCount.textContent = game.enemies.length;
 
-  const target = game.hoverKey ? getEnemyByKey(game.hoverKey) : null;
-  if (target && game.visible.has(game.hoverKey)) {
-    const c = healthCondition(target.hp, ENEMY_MAX_HP);
-    el.targetCondition.textContent = conditionLabel(c);
-    el.targetCondition.className = `condition ${c}`;
-  } else {
-    el.targetCondition.textContent = "None";
-    el.targetCondition.className = "condition none";
-  }
 
   const rows = [];
   for (let y = 0; y < HEIGHT; y++) {
@@ -777,10 +764,6 @@ function render() {
   renderInventory();
 }
 
-function getEnemyByKey(posKey) {
-  return game.enemies.find((enemy) => key(enemy.x, enemy.y) === posKey);
-}
-
 function renderCell(x, y) {
   const p = key(x, y);
   const visible = game.visible.has(p);
@@ -792,8 +775,7 @@ function renderCell(x, y) {
   const foe = enemyAt(x, y);
   if (foe && visible) {
     const c = healthCondition(foe.hp, ENEMY_MAX_HP);
-    return cell(enemySymbol(foe), x, y, `enemy ${c}${game.hoverKey === p ? " target" : ""}`);
-  }
+    return cell(enemySymbol(foe), x, y, `enemy ${c}`);
 
   if (visible) {
     const pickup = pickupAt(x, y);
@@ -875,13 +857,6 @@ function setup() {
       game.hoverKey = next;
       render();
     }
-  });
-
-  el.grid.addEventListener("pointerdown", (event) => {
-    const target = event.target.closest(".enemy");
-    if (!target || game.pendingChest || game.won) return;
-    event.preventDefault();
-    tryShootAt(Number(target.dataset.x), Number(target.dataset.y));
   });
 
   el.inventory.addEventListener("click", (event) => {
