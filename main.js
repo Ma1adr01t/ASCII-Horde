@@ -8,7 +8,6 @@ const VIS_RADIUS = 10;
 // One enemy type: H when full hp, h when injured.
 const ENEMY_MAX_HP = 5;
 const ENEMY_DAMAGE = 1;
-const STAGE_ENEMY_COUNT = 8;
 
 const CHEST_ITEMS = ["Health Kit", "Body Armor", "Extended Magazine", "Improved Barrel", "Key", "Map"];
 const el = {
@@ -25,10 +24,9 @@ const inBounds = (x, y) => x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT;
 function newGame() {
   const map = generateDungeon();
   game = { turn: 0, kills: 0, over: false, won: false, hovered: null, logs: ["Explore the dungeon."], walls: map.walls, floors: map.floors, doors: map.doors, exit: map.exit, chests: map.chests, enemies: [],
-    player: { x: map.start.x, y: map.start.y, hp: 10, maxHp: 10 }, shots: BASE_CLIP_SIZE, maxShots: BASE_CLIP_SIZE, shotDamage: BASE_SHOT_DAMAGE, mapFound: false, visible: new Set(), discovered: new Set(), inventory: [], pendingChest: null };
+    player: { x: map.start.x, y: map.start.y, hp: 10, maxHp: 10 }, shots: BASE_CLIP_SIZE, maxShots: BASE_CLIP_SIZE, shotDamage: BASE_SHOT_DAMAGE, mapFound: false, visible: new Set(), inventory: [], pendingChest: null };
   recalcVisibility();
-  // Spawn the full stage enemy budget at level start; no mid-level enemy spawning.
-  spawnEnemies(STAGE_ENEMY_COUNT);
+  spawnEnemies(4);
   recalcVisibility();
   render();
 }
@@ -57,18 +55,7 @@ function generateDungeon() {
   return { walls, floors, start, exit, doors, chests };
 }
 
-// Hallways are carved two tiles wide to give dodging space.
-function carveTile(x, y, walls, floors) { if (!inBounds(x, y)) return; walls.delete(key(x, y)); floors.add(key(x, y)); }
-function carveCorridor(x1, y1, x2, y2, walls, floors) {
-  for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) {
-    carveTile(x, y1, walls, floors);
-    carveTile(x, y1 + 1, walls, floors);
-  }
-  for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) {
-    carveTile(x2, y, walls, floors);
-    carveTile(x2 + 1, y, walls, floors);
-  }
-}
+function carveCorridor(x1, y1, x2, y2, walls, floors) { for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) { walls.delete(key(x, y1)); floors.add(key(x, y1)); } for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) { walls.delete(key(x2, y)); floors.add(key(x2, y)); } }
 
 function placeDoors(floors, walls, start, exit) {
   const doors = [];
@@ -207,6 +194,7 @@ function resolveAction(fn) {
 
   // Enemies act only every two valid player turns.
   if (game.turn % 2 === 0) enemiesTurn();
+  if (game.turn % 2 === 0 && !game.over && !game.won) spawnEnemies(1);
 
   recalcVisibility();
   checkEnd();
@@ -325,13 +313,13 @@ function openChestOverlay(c) { el.chestText.textContent = `Found: ${c.item}`; el
 function closeChestOverlay() { el.chestOverlay.classList.add("hidden"); }
 function checkEnd() { if (game.player.hp <= 0) { game.over = true; addLog("You fall. Press Restart or Space."); } }
 
-function render() { el.hp.textContent = Math.max(0, game.player.hp); el.maxHp.textContent = game.player.maxHp; el.shots.textContent = `${game.shots}/${game.maxShots}`; el.turn.textContent = game.turn; el.kills.textContent = game.kills;
-  const rows = []; for (let y = 0; y < HEIGHT; y++) { const row = []; for (let x = 0; x < WIDTH; x++) { const posKey = key(x, y); const vis = game.visible.has(posKey); const sawBefore = game.discovered.has(posKey); const revealWalls = vis || sawBefore || game.mapFound; let ch = "."; let cls = "cell";
+function render() { el.hp.textContent = Math.max(0, game.player.hp); el.maxHp.textContent = game.player.maxHp; el.shots.textContent = `${game.shots}/${game.maxShots}`; el.turn.textContent = game.turn; el.kills.textContent = game.kills; el.enemyCount.textContent = game.enemies.length;
+  const rows = []; for (let y = 0; y < HEIGHT; y++) { const row = []; for (let x = 0; x < WIDTH; x++) { const vis = game.visible.has(key(x, y)); const reveal = vis || game.mapFound; let ch = "."; let cls = "cell";
     if (game.player.x === x && game.player.y === y) { ch = "@"; }
-    else { const foe = enemyAt(x, y); if (foe && vis) { ch = enemySymbol(foe); cls += " enemy"; if (game.hovered === posKey) cls += " target"; }
+    else { const foe = enemyAt(x, y); if (foe && vis) { ch = enemySymbol(foe); cls += " enemy"; if (game.hovered === key(x, y)) cls += " target"; }
       else if (chestAt(x, y) && vis) ch = "C";
-      else if (x === game.exit.x && y === game.exit.y && (vis || game.mapFound)) ch = "E";
-      else { const d = doorAt(x, y); if (d && (vis || game.mapFound)) ch = "D"; else if (game.walls.has(posKey) && revealWalls) { ch = "#"; cls += " wall"; } else if (vis && game.floors.has(posKey)) ch = " "; } }
+      else if (x === game.exit.x && y === game.exit.y && reveal) ch = "E";
+      else { const d = doorAt(x, y); if (d && reveal) ch = "D"; else if (game.walls.has(key(x, y)) && reveal) { ch = "#"; cls += " wall"; } else if (reveal && game.floors.has(key(x, y))) ch = " "; } }
     if (ch === ".") row.push("."); else row.push(`<span class="${cls}" data-x="${x}" data-y="${y}">${ch}</span>`); } rows.push(row.join("")); }
   el.grid.innerHTML = rows.join("\n"); el.log.innerHTML = game.logs.map((l) => `<p>${l}</p>`).join("");
   el.inventory.innerHTML = `<strong>Inventory (${game.inventory.length}/2)</strong>` + (game.inventory.length ? game.inventory.map((i, idx) => `<div class="inventory-row"><span>${i.name}${i.name === "Body Armor" ? ` (${i.armor})` : ""}</span>${i.name !== "Key" && i.name !== "Body Armor" ? `<button class="btn use-item" data-idx="${idx}">Use</button>` : ""}</div>`).join("") : `<div class="inventory-row"><span>(empty)</span></div>`);
