@@ -139,7 +139,7 @@ function startLevel(carry) {
     kills: 0,
     over: false,
     won: false,
-    logs: [`Floor ${carry.level}. Find the ${titleColor(map.exit.color)} Key, then escape.`]
+    logs: [`Floor ${carry.level}. Find a way out.`]
   };
 
   recalcVisibility();
@@ -402,32 +402,51 @@ function placeDoorsFromConnections(connections, start, exit) {
 function placeChests(rooms, doors, start, exit) {
   const chestsByRoom = new Map();
   const blocked = new Set([key(start.x, start.y), key(exit.x, exit.y), ...doors.map((d) => key(d.x, d.y))]);
+  const usedImportantRooms = new Set();
 
-  function addItemToRoom(roomIndex, item) {
-    if (!chestsByRoom.has(roomIndex)) {
-      chestsByRoom.set(roomIndex, { items: [], locked: false, lockColor: null });
-    }
-    chestsByRoom.get(roomIndex).items.push(item);
+  function placeChestInRoom(roomIndex, items, locked = false, lockColor = null) {
+    if (roomIndex === null || roomIndex === undefined) return false;
+    if (chestsByRoom.has(roomIndex)) return false;
+
+    chestsByRoom.set(roomIndex, { items, locked, lockColor });
+    return true;
   }
 
-  addItemToRoom(roomIndexForPoint(rooms, exit), `${titleColor(exit.color)} Key`);
+  const exitRoomIndex = roomIndexForPoint(rooms, exit);
+  const startRoomIndex = roomIndexForPoint(rooms, start);
+  const exitKeyRoom = chooseKeyRoomAwayFrom(rooms, exitRoomIndex, new Set([exitRoomIndex]));
+  placeChestInRoom(exitKeyRoom, [`${titleColor(exit.color)} Key`], false, null);
+  usedImportantRooms.add(exitKeyRoom);
 
   for (const door of doors) {
     if (!door.locked) continue;
-    const parentRoom = rooms[door.parentIndex] ? door.parentIndex : 0;
-    addItemToRoom(parentRoom, `${titleColor(door.color)} Key`);
+
+    const disallowed = new Set([...usedImportantRooms, exitRoomIndex]);
+    let keyRoom = door.parentIndex;
+
+    if (keyRoom === undefined || keyRoom === door.childIndex || disallowed.has(keyRoom) || chestsByRoom.has(keyRoom)) {
+      keyRoom = chooseKeyRoomNearStart(rooms, startRoomIndex, disallowed);
+    }
+
+    placeChestInRoom(keyRoom, [`${titleColor(door.color)} Key`], false, null);
+    usedImportantRooms.add(keyRoom);
   }
 
+  const requiredColors = new Set([exit.color, ...doors.filter((d) => d.locked).map((d) => d.color)]);
   const targetChestCount = Math.min(rooms.length, Math.max(6, chestsByRoom.size + 4));
   const roomOrder = shuffle([...rooms.keys()]);
 
   while (chestsByRoom.size < targetChestCount && roomOrder.length) {
     const roomIndex = roomOrder.pop();
     if (chestsByRoom.has(roomIndex)) continue;
+
+    const canLock = requiredColors.size > 0 && Math.random() < 0.28;
+    const lockColor = canLock ? [...requiredColors][randInt(0, requiredColors.size - 1)] : null;
+
     chestsByRoom.set(roomIndex, {
       items: [randomChestItem()],
-      locked: Math.random() < 0.28,
-      lockColor: randomColor()
+      locked: canLock,
+      lockColor
     });
   }
 
@@ -438,13 +457,12 @@ function placeChests(rooms, doors, start, exit) {
     const pos = randomFloorInRoom(room, blocked);
     if (!pos) continue;
 
-    const containsKey = chestData.items.some((item) => item.endsWith("Key"));
     chests.push({
       x: pos.x,
       y: pos.y,
       items: chestData.items,
-      locked: containsKey ? false : chestData.locked,
-      lockColor: containsKey ? null : chestData.lockColor,
+      locked: chestData.locked,
+      lockColor: chestData.lockColor,
       roomIndex
     });
 
@@ -452,6 +470,44 @@ function placeChests(rooms, doors, start, exit) {
   }
 
   return chests;
+}
+
+function chooseKeyRoomAwayFrom(rooms, avoidIndex, disallowed = new Set()) {
+  const avoid = rooms[avoidIndex];
+
+  const candidates = rooms
+    .map((room, index) => ({ room, index }))
+    .filter(({ index }) => !disallowed.has(index));
+
+  if (!candidates.length) return 0;
+
+  candidates.sort((a, b) => {
+    const distA = Math.abs(a.room.cx - avoid.cx) + Math.abs(a.room.cy - avoid.cy);
+    const distB = Math.abs(b.room.cx - avoid.cx) + Math.abs(b.room.cy - avoid.cy);
+    return distB - distA;
+  });
+
+  const topChoices = candidates.slice(0, Math.min(5, candidates.length));
+  return topChoices[randInt(0, topChoices.length - 1)].index;
+}
+
+function chooseKeyRoomNearStart(rooms, startIndex, disallowed = new Set()) {
+  const startRoom = rooms[startIndex];
+
+  const candidates = rooms
+    .map((room, index) => ({ room, index }))
+    .filter(({ index }) => !disallowed.has(index));
+
+  if (!candidates.length) return startIndex;
+
+  candidates.sort((a, b) => {
+    const distA = Math.abs(a.room.cx - startRoom.cx) + Math.abs(a.room.cy - startRoom.cy);
+    const distB = Math.abs(b.room.cx - startRoom.cx) + Math.abs(b.room.cy - startRoom.cy);
+    return distA - distB;
+  });
+
+  const topChoices = candidates.slice(0, Math.min(5, candidates.length));
+  return topChoices[randInt(0, topChoices.length - 1)].index;
 }
 
 function roomIndexForPoint(rooms, point) {
@@ -839,7 +895,7 @@ function move(dx, dy) {
 
     if (nx === game.exit.x && ny === game.exit.y) {
       if (!hasKey(game.exit.color)) {
-        addLog(`The ${game.exit.color} exit is sealed.`);
+        addLog("The exit is sealed. A matching key is needed.");
         return false;
       }
 
@@ -848,7 +904,7 @@ function move(dx, dy) {
       game.won = true;
       game.over = true;
       game.turn++;
-      addLog(`The ${titleColor(game.exit.color)} Key breaks the exit seal.`);
+      addLog("The exit seal breaks.");
       addLog("Level complete.");
       openLevelOverlay();
       return true;
@@ -1249,7 +1305,7 @@ function renderCell(x, y) {
 
   if (mapReveal) {
     const d = doorAt(x, y);
-    if (d) return cell("D", x, y, `door ${d.color}${d.locked ? " locked" : ""} memory`);
+    if (d) return renderDoorCell(x, y, d, " memory");
     if (game.exit.x === x && game.exit.y === y) return cell("E", x, y, `exit ${game.exit.color} memory`);
     if (game.walls.has(p)) return cell("#", x, y, "wall memory");
     return ".";
@@ -1265,18 +1321,32 @@ function renderKnownCell(x, y, suffix) {
   if (!suffix && pickup) return cell("a", x, y, "ammo");
 
   const chest = chestAt(x, y);
-  if (chest) return cell("C", x, y, `chest${suffix}`);
+  if (chest) return renderChestCell(x, y, chest, suffix);
 
   if (game.exit.x === x && game.exit.y === y) return cell("E", x, y, `exit ${game.exit.color}${suffix}`);
 
   const d = doorAt(x, y);
-  if (d) return cell("D", x, y, `door ${d.color}${d.locked ? " locked" : ""}${suffix}`);
+  if (d) return renderDoorCell(x, y, d, suffix);
 
   if (game.walls.has(p)) return cell("#", x, y, `wall${suffix}`);
 
   if (game.floors.has(p)) return cell(" ", x, y, `floor${suffix}`);
 
   return ".";
+}
+
+function renderDoorCell(x, y, door, suffix) {
+  const classes = door.locked
+    ? `door ${door.color} locked${suffix}`
+    : `door${suffix}`;
+  return cell("D", x, y, classes);
+}
+
+function renderChestCell(x, y, chest, suffix) {
+  const classes = chest.locked
+    ? `chest ${chest.lockColor} locked${suffix}`
+    : `chest${suffix}`;
+  return cell("C", x, y, classes);
 }
 
 function cell(char, x, y, className) {
