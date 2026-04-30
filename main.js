@@ -124,7 +124,7 @@ function startLevel(carry) {
     kills: 0,
     over: false,
     won: false,
-    logs: [`Floor ${carry.level}. Find the exit key, then escape.`],
+    logs: [`Floor ${carry.level}. Find the exit key, then escape.`]
   };
 
   recalcVisibility();
@@ -149,8 +149,8 @@ function generateDungeon() {
       for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
     }
 
-    for (let i = 0; i < 12; i++) {
-      const w = randInt(5, 9);
+    for (let i = 0; i < 14; i++) {
+      const w = randInt(6, 11);
       const h = randInt(4, 7);
       const x = randInt(1, WIDTH - w - 2);
       const y = randInt(1, HEIGHT - h - 2);
@@ -211,9 +211,13 @@ function carveCorridor(x1, y1, x2, y2, walls, floors) {
 function fallbackDungeon() {
   const walls = new Set();
   const floors = new Set();
-  for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
+  for (let y = 0; y < HEIGHT; y++) {
+    for (let x = 0; x < WIDTH; x++) walls.add(key(x, y));
+  }
+
   const room = { x: 4, y: 4, w: WIDTH - 8, h: HEIGHT - 8, cx: 8, cy: 8 };
   carveRoom(room, walls, floors);
+
   return {
     walls,
     floors,
@@ -227,26 +231,33 @@ function fallbackDungeon() {
 
 function placeDoors(floors, walls, start, exit) {
   const candidates = [];
+
   for (const pos of floors) {
     const [x, y] = pos.split(",").map(Number);
     if (samePos({ x, y }, start) || samePos({ x, y }, exit)) continue;
+
     const leftWall = walls.has(key(x - 1, y));
     const rightWall = walls.has(key(x + 1, y));
     const upWall = walls.has(key(x, y - 1));
     const downWall = walls.has(key(x, y + 1));
+
     const horizontalPassage = !leftWall && !rightWall && upWall && downWall;
     const verticalPassage = leftWall && rightWall && !upWall && !downWall;
+
     if (horizontalPassage || verticalPassage) candidates.push({ x, y });
   }
 
   shuffle(candidates);
+
   const doors = [];
   const maxDoors = Math.min(3, candidates.length);
+
   for (let i = 0; i < maxDoors; i++) {
     if (Math.random() < 0.5) doors.push({ ...candidates[i], locked: false });
   }
 
   if (doors.length && Math.random() < 0.6) doors[0].locked = true;
+
   return doors;
 }
 
@@ -268,6 +279,7 @@ function placeChests(floors, doors, start, exit, rooms) {
 
   const floorList = [...floors].filter((p) => !blocked.has(p));
   shuffle(floorList);
+
   while (chests.length < chestCount && floorList.length) {
     const [x, y] = floorList.pop().split(",").map(Number);
     const item = ITEM_POOL[randInt(0, ITEM_POOL.length - 1)];
@@ -280,12 +292,14 @@ function placeChests(floors, doors, start, exit, rooms) {
 
 function randomFloorInRoom(room, blocked, floors) {
   const spots = [];
+
   for (let y = room.y; y < room.y + room.h; y++) {
     for (let x = room.x; x < room.x + room.w; x++) {
       const p = key(x, y);
       if (floors.has(p) && !blocked.has(p)) spots.push({ x, y });
     }
   }
+
   return spots.length ? spots[randInt(0, spots.length - 1)] : null;
 }
 
@@ -306,9 +320,11 @@ function shuffle(arr) {
 
 function recalcVisibility() {
   game.visible.clear();
+
   for (let y = 0; y < HEIGHT; y++) {
     for (let x = 0; x < WIDTH; x++) {
       const dist = Math.hypot(x - game.player.x, y - game.player.y);
+
       if (dist <= VIS_RADIUS && hasLine(game.player.x, game.player.y, x, y, true)) {
         const p = key(x, y);
         game.visible.add(p);
@@ -329,19 +345,40 @@ function hasLine(x0, y0, x1, y1, stopAtWall) {
 
   while (!(x === x1 && y === y1)) {
     const e2 = err * 2;
-    if (e2 > -dy) { err -= dy; x += sx; }
-    if (e2 < dx) { err += dx; y += sy; }
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
     if (x === x1 && y === y1) break;
     if (stopAtWall && game.walls.has(key(x, y))) return false;
   }
+
   return true;
 }
 
-function enemyAt(x, y) { return game.enemies.find((e) => e.x === x && e.y === y); }
-function chestAt(x, y) { return game.chests.find((c) => c.x === x && c.y === y); }
-function doorAt(x, y) { return game.doors.find((d) => d.x === x && d.y === y); }
-function pickupAt(x, y) { return game.pickups.find((p) => p.x === x && p.y === y); }
-function enemySymbol(enemy) { return enemy.hp === ENEMY_MAX_HP ? "H" : "h"; }
+function enemyAt(x, y) {
+  return game.enemies.find((e) => e.x === x && e.y === y);
+}
+
+function chestAt(x, y) {
+  return game.chests.find((c) => c.x === x && c.y === y);
+}
+
+function doorAt(x, y) {
+  return game.doors.find((d) => d.x === x && d.y === y);
+}
+
+function pickupAt(x, y) {
+  return game.pickups.find((p) => p.x === x && p.y === y);
+}
+
+function enemySymbol(enemy) {
+  return enemy.hp === ENEMY_MAX_HP ? "H" : "h";
+}
 
 function healthCondition(current, max) {
   const ratio = current / max;
@@ -364,8 +401,12 @@ function addLog(message) {
 
 function resolveAction(action) {
   if (game.over || game.pendingChest) return;
+
   const valid = action();
-  if (!valid) { render(); return; }
+  if (!valid) {
+    render();
+    return;
+  }
 
   cleanupDead();
   recalcVisibility();
@@ -408,31 +449,38 @@ function move(dx, dy) {
     if (foe) {
       foe.hp -= 1;
       addLog(foe.hp > 0 ? "You shove into the enemy. It staggers, but holds." : "You crush the weakened enemy at close range.");
-    } else {
+      game.turn++;
+      return true;
+    }
+
+    if (nx === game.exit.x && ny === game.exit.y) {
+      if (!consumeKey()) {
+        addLog("The exit is sealed. You need a key.");
+        return false;
+      }
+
       game.player.x = nx;
       game.player.y = ny;
+      game.won = true;
+      game.over = true;
+      game.turn++;
+      addLog("The exit lock gives way.");
+      addLog("Level complete.");
+      openLevelOverlay();
+      return true;
+    }
 
-      const pickup = pickupAt(nx, ny);
-      if (pickup) collectPickup(pickup);
+    game.player.x = nx;
+    game.player.y = ny;
 
-      const chest = chestAt(nx, ny);
-      if (chest) {
-        game.pendingChest = chest;
-        addLog(`Chest found: ${chest.item}.`);
-        openChestOverlay(chest);
-      }
+    const pickup = pickupAt(nx, ny);
+    if (pickup) collectPickup(pickup);
 
-      if (nx === game.exit.x && ny === game.exit.y) {
-        if (!consumeKey()) {
-          addLog("The exit is sealed. You need a key.");
-          return false;
-        }
-        game.won = true;
-        game.over = true;
-        addLog("The exit lock gives way.");
-        addLog("Level complete.");
-        openLevelOverlay();
-      }
+    const chest = chestAt(nx, ny);
+    if (chest) {
+      game.pendingChest = chest;
+      addLog(`Chest found: ${chest.item}.`);
+      openChestOverlay(chest);
     }
 
     game.turn++;
@@ -443,6 +491,7 @@ function move(dx, dy) {
 function tryShootAt(x, y) {
   resolveAction(() => {
     const targetKey = key(x, y);
+
     if (!game.visible.has(targetKey)) {
       addLog("You can't see a target there.");
       return false;
@@ -462,6 +511,7 @@ function tryShootAt(x, y) {
     const dx = x - game.player.x;
     const dy = y - game.player.y;
     const aligned = dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy);
+
     if (!aligned) {
       addLog("No clear shot.");
       return false;
@@ -481,12 +531,14 @@ function tryShootAt(x, y) {
     }
 
     foe.hp -= game.shotDamage;
+
     if (foe.hp > 0) {
       const condition = conditionLabel(healthCondition(foe.hp, ENEMY_MAX_HP)).toLowerCase();
       addLog(`Your shot hits the enemy. It persists, now ${condition}.`);
     } else {
       addLog("Your shot drops the enemy into the dark.");
     }
+
     return true;
   });
 }
@@ -505,9 +557,11 @@ function reload() {
 
     const needed = game.maxShots - game.shots;
     const loaded = Math.min(needed, game.reserveAmmo);
+
     game.shots += loaded;
     game.reserveAmmo -= loaded;
     game.turn++;
+
     addLog(`You reload ${loaded} round${loaded === 1 ? "" : "s"}.`);
     return true;
   });
@@ -523,9 +577,11 @@ function waitTurn() {
 
 function enemiesTurn() {
   let attacks = 0;
+
   for (const enemy of game.enemies) {
     const dx = game.player.x - enemy.x;
     const dy = game.player.y - enemy.y;
+
     if (Math.abs(dx) + Math.abs(dy) === 1) {
       applyDamage(ENEMY_DAMAGE);
       attacks++;
@@ -545,6 +601,7 @@ function enemiesTurn() {
       break;
     }
   }
+
   if (attacks) addLog(`The horde claws at you: ${attacks} hit${attacks > 1 ? "s" : ""}.`);
 }
 
@@ -558,15 +615,19 @@ function isEnemyPassable(x, y) {
 
 function spawnEnemies(count) {
   const candidates = [];
+
   for (const p of game.floors) {
     const [x, y] = p.split(",").map(Number);
+
     if (game.visible.has(p)) continue;
     if (enemyAt(x, y) || chestAt(x, y) || doorAt(x, y) || pickupAt(x, y)) continue;
     if (x === game.exit.x && y === game.exit.y) continue;
+
     candidates.push({ x, y, dist: Math.abs(x - game.player.x) + Math.abs(y - game.player.y) });
   }
 
   candidates.sort((a, b) => b.dist - a.dist);
+
   let spawned = 0;
   while (spawned < count && candidates.length && game.enemies.length < enemyCap()) {
     const pick = candidates.splice(randInt(0, Math.min(10, candidates.length - 1)), 1)[0];
@@ -602,6 +663,7 @@ function maybeDropAmmo(x, y) {
   if (Math.random() > 0.25) return;
   if (pickupAt(x, y) || chestAt(x, y) || doorAt(x, y)) return;
   if (!game.floors.has(key(x, y))) return;
+
   game.pickups.push({ x, y, type: "Ammo", amount: randInt(2, 4) });
 }
 
@@ -610,12 +672,14 @@ function collectPickup(pickup) {
     game.reserveAmmo += pickup.amount;
     addLog(`You recover ${pickup.amount} round${pickup.amount === 1 ? "" : "s"}.`);
   }
+
   game.pickups = game.pickups.filter((p) => p !== pickup);
 }
 
 function consumeKey() {
   const index = game.inventory.findIndex((item) => item.name === "Key");
   if (index === -1) return false;
+
   game.inventory.splice(index, 1);
   return true;
 }
@@ -623,11 +687,14 @@ function consumeKey() {
 function applyDamage(damage) {
   let remaining = damage;
   const armor = game.inventory.find((item) => item.name === "Body Armor");
+
   if (armor && armor.armor > 0) {
     const blocked = Math.min(armor.armor, remaining);
     armor.armor -= blocked;
     remaining -= blocked;
+
     addLog(`Your armor absorbs ${blocked} damage.`);
+
     if (armor.armor <= 0) {
       game.inventory = game.inventory.filter((item) => item !== armor);
       addLog("Body Armor breaks.");
@@ -662,6 +729,7 @@ function useItem(index) {
 
 function takeChest() {
   if (!game.pendingChest) return;
+
   const chest = game.pendingChest;
   const inventoryItem = ["Health Kit", "Body Armor", "Key"].includes(chest.item);
 
@@ -674,33 +742,41 @@ function takeChest() {
   }
 
   if (chest.item === "Health Kit") game.inventory.push({ name: "Health Kit" });
+
   if (chest.item === "Body Armor") game.inventory.push({ name: "Body Armor", armor: 3 });
+
   if (chest.item === "Key") {
     game.inventory.push({ name: "Key" });
     addLog("Key obtained.");
   }
+
   if (chest.item === "Ammo Box") {
     const amount = randInt(6, 10);
     game.reserveAmmo += amount;
     addLog(`Ammo box found. Reserve +${amount}.`);
   }
+
   if (chest.item === "Extended Magazine") {
     game.maxShots += 3;
     addLog(`Extended Magazine installed. Magazine size is now ${game.maxShots}.`);
   }
+
   if (chest.item === "Improved Barrel") {
     game.shotDamage += 1;
     addLog("Improved Barrel installed. Your shots hit harder.");
   }
+
   if (chest.item === "Map") {
     game.mapFound = true;
     addLog("You found a map. The floor plan is revealed.");
   }
 
   if (inventoryItem) addLog(`Item taken: ${chest.item}.`);
+
   game.chests = game.chests.filter((c) => c !== chest);
   game.pendingChest = null;
   closeChestOverlay();
+
   resolveAction(() => {
     game.turn++;
     return true;
@@ -709,6 +785,7 @@ function takeChest() {
 
 function leaveChest() {
   if (!game.pendingChest) return;
+
   game.pendingChest = null;
   closeChestOverlay();
   addLog("Item left.");
@@ -743,16 +820,18 @@ function checkEnd() {
 
 function render() {
   el.level.textContent = game.level;
+
   const playerCondition = healthCondition(game.player.hp, game.player.maxHp);
   el.condition.textContent = conditionLabel(playerCondition);
   el.condition.className = `condition ${playerCondition}`;
- el.shots.textContent = `${game.shots}/${game.reserveAmmo}`;
+
+  el.shots.textContent = `${game.shots}/${game.reserveAmmo}`;
   el.turn.textContent = game.turn;
   el.kills.textContent = game.kills;
   el.enemyCount.textContent = game.enemies.length;
 
-
   const rows = [];
+
   for (let y = 0; y < HEIGHT; y++) {
     const row = [];
     for (let x = 0; x < WIDTH; x++) row.push(renderCell(x, y));
@@ -776,34 +855,47 @@ function renderCell(x, y) {
   if (foe && visible) {
     const c = healthCondition(foe.hp, ENEMY_MAX_HP);
     return cell(enemySymbol(foe), x, y, `enemy ${c}`);
+  }
 
   if (visible) {
     const pickup = pickupAt(x, y);
     if (pickup) return cell("a", x, y, "ammo");
+
     const chest = chestAt(x, y);
     if (chest) return cell("C", x, y, "chest");
+
     if (game.exit.x === x && game.exit.y === y) return cell("E", x, y, "exit");
+
     const d = doorAt(x, y);
     if (d) return cell("D", x, y, d.locked ? "door locked" : "door");
+
     if (game.walls.has(p)) return cell("#", x, y, "wall");
+
     if (game.floors.has(p)) return cell(" ", x, y, "floor");
   }
 
   if (remembered) {
     const chest = chestAt(x, y);
     if (chest) return cell("C", x, y, "chest memory");
+
     if (game.exit.x === x && game.exit.y === y) return cell("E", x, y, "exit memory");
+
     const d = doorAt(x, y);
     if (d) return cell("D", x, y, d.locked ? "door locked memory" : "door memory");
+
     if (game.walls.has(p)) return cell("#", x, y, "wall memory");
+
     if (game.floors.has(p)) return cell(" ", x, y, "floor memory");
   }
 
   if (mapReveal) {
     if (game.exit.x === x && game.exit.y === y) return cell("E", x, y, "exit memory");
+
     const d = doorAt(x, y);
     if (d) return cell("D", x, y, d.locked ? "door locked memory" : "door memory");
+
     if (game.walls.has(p)) return cell("#", x, y, "wall memory");
+
     if (game.floors.has(p)) return cell(" ", x, y, "floor memory");
   }
 
@@ -820,15 +912,23 @@ function renderInventory() {
     const button = item.name === "Health Kit" ? `<button class="btn use-item" data-idx="${index}" type="button">Use</button>` : "";
     return `<div class="inventory-row"><span>${escapeHtml(label)}</span>${button}</div>`;
   }).join("");
+
   el.inventory.innerHTML = `<strong>Inventory (${game.inventory.length}/2)</strong>${rows || `<div class="inventory-row"><span>(empty)</span></div>`}`;
 }
 
 function setup() {
   document.addEventListener("keydown", (event) => {
     if (!game) return;
+
     const k = event.key.toLowerCase();
-    if (k === " " && game.over && !game.won) { newGame(); return; }
+
+    if (k === " " && game.over && !game.won) {
+      newGame();
+      return;
+    }
+
     if (game.pendingChest || game.won) return;
+
     if (k === "w" || k === "arrowup") move(0, -1);
     if (k === "s" || k === "arrowdown") move(0, 1);
     if (k === "a" || k === "arrowleft") move(-1, 0);
@@ -838,30 +938,37 @@ function setup() {
   el.dpad.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-dir]");
     if (!button || game.pendingChest || game.won) return;
+
     const [dx, dy] = DIRS[button.dataset.dir];
     move(dx, dy);
   });
 
-  el.waitBtn.addEventListener("click", () => { if (!game.pendingChest && !game.won) waitTurn(); });
-  el.reloadBtn.addEventListener("click", () => { if (!game.pendingChest && !game.won) reload(); });
+  el.waitBtn.addEventListener("click", () => {
+    if (!game.pendingChest && !game.won) waitTurn();
+  });
+
+  el.reloadBtn.addEventListener("click", () => {
+    if (!game.pendingChest && !game.won) reload();
+  });
+
   el.restartBtn.addEventListener("click", newGame);
   el.takeBtn.addEventListener("click", takeChest);
   el.leaveBtn.addEventListener("click", leaveChest);
   el.nextLevelBtn.addEventListener("click", startNextLevel);
   el.levelRestartBtn.addEventListener("click", newGame);
 
-  el.grid.addEventListener("pointermove", (event) => {
+  el.grid.addEventListener("pointerdown", (event) => {
     const target = event.target.closest(".enemy");
-    const next = target ? key(Number(target.dataset.x), Number(target.dataset.y)) : null;
-    if (game.hoverKey !== next) {
-      game.hoverKey = next;
-      render();
-    }
+    if (!target || game.pendingChest || game.won) return;
+
+    event.preventDefault();
+    tryShootAt(Number(target.dataset.x), Number(target.dataset.y));
   });
 
   el.inventory.addEventListener("click", (event) => {
     const button = event.target.closest(".use-item");
     if (!button || game.pendingChest || game.won) return;
+
     useItem(Number(button.dataset.idx));
   });
 }
@@ -872,6 +979,7 @@ function escapeHtml(value) {
 
 function bootGame() {
   wireElements();
+
   if (!hasRequiredElements()) {
     showBootError("Required UI elements are missing.");
     return;
