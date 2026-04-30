@@ -5,14 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ASCII Horde</title>
 
-    <link rel="stylesheet" href="./style.css?v=aim1" />
+    <link rel="stylesheet" href="./style.css?v=floorplan1" />
 
     <style>
       * { box-sizing: border-box; }
 
+      html,
       body {
+        width: 100%;
+        height: 100%;
         margin: 0;
-        min-height: 100vh;
+        overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: none;
+      }
+
+      body {
+        position: fixed;
+        inset: 0;
+        min-height: 100dvh;
         background: #101010;
         color: #eeeeee;
         font-family: "Courier New", Courier, monospace;
@@ -20,12 +31,14 @@
 
       .game-shell {
         width: min(760px, 100vw);
+        height: 100dvh;
         margin: 0 auto;
-        padding: 10px;
+        padding: 8px;
         text-align: center;
+        overflow: hidden;
       }
 
-      .title-block { margin-bottom: 6px; }
+      .title-block { margin-bottom: 4px; }
 
       h1 {
         margin: 0;
@@ -45,9 +58,9 @@
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 6px 12px;
-        margin: 8px auto;
-        font-size: 14px;
+        gap: 5px 10px;
+        margin: 6px auto;
+        font-size: 13px;
         line-height: 1.2;
       }
 
@@ -67,7 +80,7 @@
       .grid {
         display: block;
         margin: 0 auto;
-        padding: 10px;
+        padding: 8px;
         background: #000000;
         color: #66ff66;
         border: 2px solid #66ff66;
@@ -111,16 +124,27 @@
       }
 
       .wall { color: #aaaaaa; }
-      .door { color: #dddd88; }
-      .locked { color: #ffcc66; }
 
-      .chest {
-        color: #66ccff;
+      .door {
         font-weight: 700;
       }
 
       .exit {
-        color: #ffee66;
+        font-weight: 700;
+        text-decoration: underline;
+      }
+
+      .red { color: #ff6666; }
+      .blue { color: #66aaff; }
+      .yellow { color: #ffee66; }
+      .green { color: #77ff77; }
+
+      .locked {
+        text-decoration: underline;
+      }
+
+      .chest {
+        color: #66ccff;
         font-weight: 700;
       }
 
@@ -129,12 +153,13 @@
         font-weight: 700;
       }
 
-      .memory { opacity: 0.35; }
+      .memory { opacity: 0.38; }
 
       .message-log {
         width: min(620px, 100%);
-        min-height: 64px;
-        margin: 8px auto 0;
+        min-height: 76px;
+        max-height: 84px;
+        margin: 7px auto 0;
         padding: 7px 10px;
         background: #050505;
         border: 1px solid #444444;
@@ -149,13 +174,15 @@
 
       .inventory {
         width: min(620px, 100%);
-        margin: 8px auto;
-        padding: 7px 10px;
+        margin: 7px auto;
+        padding: 6px 10px;
         background: #161616;
         border: 1px solid #333333;
         border-radius: 6px;
         text-align: left;
         font-size: 13px;
+        max-height: 74px;
+        overflow: hidden;
       }
 
       .inventory-row {
@@ -163,7 +190,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 8px;
-        margin-top: 4px;
+        margin-top: 3px;
       }
 
       .controls {
@@ -171,14 +198,14 @@
         flex-wrap: wrap;
         justify-content: center;
         align-items: center;
-        gap: 12px;
-        margin-top: 8px;
+        gap: 10px;
+        margin-top: 7px;
       }
 
       .dpad {
         display: grid;
         grid-template-columns: 62px 62px 62px;
-        grid-template-rows: 42px 42px 42px;
+        grid-template-rows: 40px 40px 40px;
         gap: 5px;
         grid-template-areas:
           ". up ."
@@ -219,27 +246,22 @@
         outline-offset: 2px;
       }
 
-      .primary-action {
-        border-color: #99ddff;
-      }
-
-      .danger-action {
-        border-color: #aa5555;
-      }
+      .primary-action { border-color: #99ddff; }
+      .danger-action { border-color: #aa5555; }
 
       .overlay {
         position: absolute;
         inset: 0;
         display: grid;
         place-items: center;
-        background: rgba(0, 0, 0, 0.65);
+        background: rgba(0, 0, 0, 0.68);
         z-index: 10;
       }
 
       .hidden { display: none !important; }
 
       .modal {
-        width: min(300px, 88%);
+        width: min(310px, 88%);
         padding: 16px;
         background: #111111;
         color: #eeeeee;
@@ -261,7 +283,7 @@
 
       .legend {
         width: min(620px, 100%);
-        margin: 8px auto 0;
+        margin: 6px auto 0;
         color: #bbbbbb;
         font-size: 12px;
       }
@@ -269,7 +291,7 @@
       .legend p { margin: 0; }
 
       @media (max-width: 560px) {
-        .game-shell { padding: 6px; }
+        .game-shell { padding: 5px; }
 
         h1,
         .build,
@@ -278,45 +300,46 @@
         }
 
         .hud {
-          margin: 4px auto 6px;
-          gap: 4px 8px;
+          margin: 3px auto 5px;
+          gap: 3px 7px;
           font-size: 12px;
         }
 
         .grid {
-          padding: 6px;
+          padding: 5px;
           font-size: 14px;
           line-height: 1;
         }
 
         .message-log {
-          min-height: 42px;
-          max-height: 46px;
-          margin-top: 6px;
+          min-height: 60px;
+          max-height: 66px;
+          margin-top: 5px;
           padding: 5px 8px;
           font-size: 11px;
         }
 
-        .message-log p:nth-last-child(n+3) {
+        .message-log p:nth-last-child(n+4) {
           display: none;
         }
 
         .inventory {
-          margin: 6px auto;
+          margin: 5px auto;
           padding: 5px 8px;
           font-size: 11px;
+          max-height: 56px;
         }
 
         .inventory-row { margin-top: 2px; }
 
         .controls {
-          margin-top: 6px;
-          gap: 8px;
+          margin-top: 5px;
+          gap: 7px;
         }
 
         .dpad {
           grid-template-columns: 54px 54px 54px;
-          grid-template-rows: 36px 36px 36px;
+          grid-template-rows: 35px 35px 35px;
           gap: 4px;
         }
 
@@ -338,7 +361,7 @@
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: aim-mode-1</div>
+        <div id="build" class="build">Build: floorplan-keys-1</div>
       </header>
 
       <section class="hud" aria-live="polite">
@@ -412,6 +435,6 @@
       </section>
     </main>
 
-    <script src="./main.js?v=aim1"></script>
+    <script src="./main.js?v=floorplan1"></script>
   </body>
 </html>
