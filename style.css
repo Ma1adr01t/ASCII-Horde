@@ -63,6 +63,8 @@ body {
 
 .dpad {
   display: grid;
+  user-select: none;
+  -webkit-user-select: none;
   grid-template-columns: repeat(3, 78px);
   grid-template-rows: repeat(3, 78px);
   gap: 8px;
@@ -79,6 +81,8 @@ body {
   background: #232a3d;
   color: var(--fg);
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
 }
 
 .dpad-btn:active { transform: scale(0.97); }

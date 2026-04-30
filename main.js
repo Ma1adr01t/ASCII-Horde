@@ -127,24 +127,76 @@ function moveByDirection(dir) {
   else if (dir === 'right') doTurn(1, 0);
 }
 
+function directionFromKey(key) {
+  if (key === 'arrowup' || key === 'w') return 'up';
+  if (key === 'arrowdown' || key === 's') return 'down';
+  if (key === 'arrowleft' || key === 'a') return 'left';
+  if (key === 'arrowright' || key === 'd') return 'right';
+  return null;
+}
+
 // Keyboard and D-pad both route through moveByDirection,
 // so each input path uses the same movement and turn logic.
 document.addEventListener('keydown', (event) => {
   const key = event.key.toLowerCase();
-  if (key === 'arrowup' || key === 'w') moveByDirection('up');
-  else if (key === 'arrowdown' || key === 's') moveByDirection('down');
-  else if (key === 'arrowleft' || key === 'a') moveByDirection('left');
-  else if (key === 'arrowright' || key === 'd') moveByDirection('right');
-  else if (key === 'r') newGame();
+  if (key === 'r') {
+    newGame();
+    return;
+  }
+
+  const direction = directionFromKey(key);
+  if (!direction) return;
+
+  // Keep each key press to one turn. Holding a key sends repeated keydown events.
+  if (event.repeat) return;
+  event.preventDefault();
+  moveByDirection(direction);
 });
 
-// Use pointerdown for touch and mouse in one event path.
-// This prevents double movement that can happen when both touch and click fire.
-dpadEl.addEventListener('pointerdown', (event) => {
-  const button = event.target.closest('button[data-dir]');
+let activePointerId = null;
+let mostRecentPointerMoveAt = 0;
+
+function findDirectionButton(eventTarget) {
+  return eventTarget.closest('button[data-dir]');
+}
+
+function handleDpadMove(button) {
   if (!button) return;
-  event.preventDefault();
   moveByDirection(button.dataset.dir);
+}
+
+// Use pointerdown for touch+mouse in one path, then ignore the synthetic click
+// many mobile browsers emit after a touch interaction.
+dpadEl.addEventListener('pointerdown', (event) => {
+  const button = findDirectionButton(event.target);
+  if (!button) return;
+
+  event.preventDefault();
+  activePointerId = event.pointerId;
+  mostRecentPointerMoveAt = Date.now();
+  handleDpadMove(button);
+});
+
+dpadEl.addEventListener('pointerup', (event) => {
+  if (event.pointerId === activePointerId) activePointerId = null;
+});
+
+dpadEl.addEventListener('pointercancel', (event) => {
+  if (event.pointerId === activePointerId) activePointerId = null;
+});
+
+// Click is kept as a fallback for older browsers.
+dpadEl.addEventListener('click', (event) => {
+  const button = findDirectionButton(event.target);
+  if (!button) return;
+
+  // If a pointer event just fired, this click is likely synthetic. Ignore it.
+  if (Date.now() - mostRecentPointerMoveAt < 450) {
+    event.preventDefault();
+    return;
+  }
+
+  handleDpadMove(button);
 });
 
 newGame();
