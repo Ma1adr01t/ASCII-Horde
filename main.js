@@ -8,7 +8,6 @@ const VIS_RADIUS = 10;
 // One enemy type: H when full hp, h when injured.
 const ENEMY_MAX_HP = 5;
 const ENEMY_DAMAGE = 1;
-const STAGE_ENEMY_COUNT = 8;
 
 const CHEST_ITEMS = ["Health Kit", "Body Armor", "Extended Magazine", "Improved Barrel", "Key", "Map"];
 const el = {
@@ -40,10 +39,9 @@ const inBounds = (x, y) => x >= 0 && y >= 0 && x < WIDTH && y < HEIGHT;
 function newGame() {
   const map = generateDungeon();
   game = { turn: 0, kills: 0, over: false, won: false, hovered: null, logs: ["Explore the dungeon."], walls: map.walls, floors: map.floors, doors: map.doors, exit: map.exit, chests: map.chests, enemies: [],
-    player: { x: map.start.x, y: map.start.y, hp: 10, maxHp: 10 }, shots: BASE_CLIP_SIZE, maxShots: BASE_CLIP_SIZE, shotDamage: BASE_SHOT_DAMAGE, mapFound: false, visible: new Set(), discovered: new Set(), inventory: [], pendingChest: null };
+    player: { x: map.start.x, y: map.start.y, hp: 10, maxHp: 10 }, shots: BASE_CLIP_SIZE, maxShots: BASE_CLIP_SIZE, shotDamage: BASE_SHOT_DAMAGE, mapFound: false, visible: new Set(), inventory: [], pendingChest: null };
   recalcVisibility();
-  // Spawn the full stage enemy budget at level start; no mid-level enemy spawning.
-  spawnEnemies(STAGE_ENEMY_COUNT);
+  spawnEnemies(4);
   recalcVisibility();
   render();
 }
@@ -96,6 +94,83 @@ function carveCorridor(x1, y1, x2, y2, walls, floors) {
     carveTile(x2 + 1, y, walls, floors);
   }
 }
+
+function placeDoors(floors, walls, start, exit) {
+  const doors = [];
+  for (const pos of floors) {
+    const [x, y] = pos.split(",").map(Number);
+    if ((x === start.x && y === start.y) || (x === exit.x && y === exit.y)) continue;
+    const n = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]].map(([a, b]) => walls.has(key(a, b)));
+    if ((n[0] && n[1] && !n[2] && !n[3]) || (!n[0] && !n[1] && n[2] && n[3])) {
+      if (Math.random() < 0.04) doors.push({ x, y, locked: Math.random() < 0.45 });
+    }
+  }
+  return doors.slice(0, 5);
+}
+
+function isReachable(floors, doors, start, target, canOpenLocked) {
+  const seen = new Set([key(start.x, start.y)]);
+  const q = [[start.x, start.y]];
+  while (q.length) {
+    const [x, y] = q.shift();
+    if (x === target.x && y === target.y) return true;
+    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+      const k = key(nx, ny);
+      if (!inBounds(nx, ny) || seen.has(k) || !floors.has(k)) continue;
+      const door = doors.find((d) => d.x === nx && d.y === ny);
+      if (door && door.locked && !canOpenLocked) continue;
+      seen.add(k); q.push([nx, ny]);
+    }
+  }
+  return false;
+}
+
+function placeChests(floors, doors, start, exit, rooms) {
+  const doorSet = new Set(doors.map((d) => key(d.x, d.y)));
+  const reachableWithoutKeys = [...floors].filter((p) => {
+    const [x, y] = p.split(",").map(Number);
+    return isReachable(floors, doors, start, { x, y }, false);
+  });
+
+  // Rare chest placement: only 1 to 3 per level.
+  const chestCount = Math.max(1, Math.min(3, Math.floor(rooms.length / 3) + (Math.random() < 0.45 ? 1 : 0)));
+  const pool = reachableWithoutKeys.filter((p) => !doorSet.has(p) && p !== key(start.x, start.y) && p !== key(exit.x, exit.y));
+  const chests = [];
+
+  // Guaranteed key placement logic: add at least one key per locked door in early reachable tiles.
+  const lockedDoors = doors.filter((d) => d.locked).length;
+  const requiredKeys = lockedDoors;
+  const early = pool.filter((p) => {
+    const [x, y] = p.split(",").map(Number);
+    return Math.abs(x - start.x) + Math.abs(y - start.y) <= 14;
+  });
+
+  for (let i = 0; i < requiredKeys && pool.length; i++) {
+    const candidates = early.length ? early : pool;
+    const idx = Math.floor(Math.random() * candidates.length);
+    const picked = candidates[idx];
+    const [x, y] = picked.split(",").map(Number);
+    chests.push({ x, y, item: "Key" });
+    removeFromArray(pool, picked);
+    removeFromArray(early, picked);
+  }
+
+  while (chests.length < chestCount && pool.length) {
+    const idx = Math.floor(Math.random() * pool.length);
+    const p = pool.splice(idx, 1)[0];
+    const [x, y] = p.split(",").map(Number);
+    const item = weightedChestItem(chests);
+    chests.push({ x, y, item });
+  }
+  const start = { x: rooms[0].cx, y: rooms[0].cy };
+  const exitRoom = rooms[rooms.length - 1];
+  const exit = { x: exitRoom.cx, y: exitRoom.cy };
+  const doors = placeDoors(floors, walls, start, exit);
+  const chests = placeChests(floors, doors, start, exit, rooms);
+  return { walls, floors, start, exit, doors, chests };
+}
+
+function carveCorridor(x1, y1, x2, y2, walls, floors) { for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) { walls.delete(key(x, y1)); floors.add(key(x, y1)); } for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) { walls.delete(key(x2, y)); floors.add(key(x2, y)); } }
 
 function placeDoors(floors, walls, start, exit) {
   const doors = [];
@@ -234,6 +309,7 @@ function resolveAction(fn) {
 
   // Enemies act only every two valid player turns.
   if (game.turn % 2 === 0) enemiesTurn();
+  if (game.turn % 2 === 0 && !game.over && !game.won) spawnEnemies(1);
 
   recalcVisibility();
   checkEnd();
@@ -352,39 +428,15 @@ function openChestOverlay(c) { el.chestText.textContent = `Found: ${c.item}`; el
 function closeChestOverlay() { el.chestOverlay.classList.add("hidden"); }
 function checkEnd() { if (game.player.hp <= 0) { game.over = true; addLog("You fall. Press Restart or Space."); } }
 
-function render() { el.hp.textContent = Math.max(0, game.player.hp); el.maxHp.textContent = game.player.maxHp; el.shots.textContent = `${game.shots}/${game.maxShots}`; el.turn.textContent = game.turn; el.kills.textContent = game.kills;
-  const rows = [];
-  for (let y = 0; y < HEIGHT; y++) {
-    const row = [];
-    for (let x = 0; x < WIDTH; x++) {
-      const posKey = key(x, y);
-      const vis = game.visible.has(posKey);
-      const sawBefore = game.discovered.has(posKey);
-      const revealWalls = vis || sawBefore || game.mapFound;
-      let ch = ".";
-      if (game.player.x === x && game.player.y === y) ch = "@";
-      else {
-        const foe = enemyAt(x, y);
-        if (foe && vis) {
-          const enemyCls = `cell enemy${game.hovered === posKey ? " target" : ""}`;
-          row.push(`<span class="${enemyCls}" data-x="${x}" data-y="${y}">${enemySymbol(foe)}</span>`);
-          continue;
-        }
-        if (chestAt(x, y) && vis) ch = "C";
-        else if (x === game.exit.x && y === game.exit.y && (vis || game.mapFound)) ch = "E";
-        else {
-          const d = doorAt(x, y);
-          if (d && (vis || game.mapFound)) ch = "D";
-          else if (game.walls.has(posKey) && revealWalls) ch = "#";
-          else if (vis && game.floors.has(posKey)) ch = " ";
-        }
-      }
-      row.push(ch);
-    }
-    rows.push(row.join(""));
-  }
-  el.grid.innerHTML = rows.join("\n");
-  el.log.innerHTML = game.logs.map((l) => `<p>${l}</p>`).join("");
+function render() { el.hp.textContent = Math.max(0, game.player.hp); el.maxHp.textContent = game.player.maxHp; el.shots.textContent = `${game.shots}/${game.maxShots}`; el.turn.textContent = game.turn; el.kills.textContent = game.kills; el.enemyCount.textContent = game.enemies.length;
+  const rows = []; for (let y = 0; y < HEIGHT; y++) { const row = []; for (let x = 0; x < WIDTH; x++) { const vis = game.visible.has(key(x, y)); const reveal = vis || game.mapFound; let ch = "."; let cls = "cell";
+    if (game.player.x === x && game.player.y === y) { ch = "@"; }
+    else { const foe = enemyAt(x, y); if (foe && vis) { ch = enemySymbol(foe); cls += " enemy"; if (game.hovered === key(x, y)) cls += " target"; }
+      else if (chestAt(x, y) && vis) ch = "C";
+      else if (x === game.exit.x && y === game.exit.y && reveal) ch = "E";
+      else { const d = doorAt(x, y); if (d && reveal) ch = "D"; else if (game.walls.has(key(x, y)) && reveal) { ch = "#"; cls += " wall"; } else if (reveal && game.floors.has(key(x, y))) ch = " "; } }
+    if (ch === ".") row.push("."); else row.push(`<span class="${cls}" data-x="${x}" data-y="${y}">${ch}</span>`); } rows.push(row.join("")); }
+  el.grid.innerHTML = rows.join("\n"); el.log.innerHTML = game.logs.map((l) => `<p>${l}</p>`).join("");
   el.inventory.innerHTML = `<strong>Inventory (${game.inventory.length}/2)</strong>` + (game.inventory.length ? game.inventory.map((i, idx) => `<div class="inventory-row"><span>${i.name}${i.name === "Body Armor" ? ` (${i.armor})` : ""}</span>${i.name !== "Key" && i.name !== "Body Armor" ? `<button class="btn use-item" data-idx="${idx}">Use</button>` : ""}</div>`).join("") : `<div class="inventory-row"><span>(empty)</span></div>`);
 }
 
@@ -408,9 +460,5 @@ function setup() {
   el.takeBtn.addEventListener("click", takeChest); el.leaveBtn.addEventListener("click", leaveChest);
 }
 
-if (!hasRequiredElements()) {
-  showBootError("Required UI elements are missing.");
-} else {
-  setup();
-  newGame();
-}
+setup();
+newGame();
