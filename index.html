@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ASCII Horde</title>
 
-    <link rel="stylesheet" href="./style.css?v=fp3d1" />
+    <link rel="stylesheet" href="./style.css?v=fp3" />
 
     <style>
       * { box-sizing: border-box; }
@@ -79,7 +79,7 @@
 
       .first-person-view {
         width: 100%;
-        height: 230px;
+        min-height: 230px;
         margin: 0 auto;
         padding: 8px;
         background: #000000;
@@ -91,131 +91,86 @@
         touch-action: manipulation;
       }
 
-      .fp-panel {
-        display: grid;
-        grid-template-rows: 18px 1fr 18px;
-        height: 100%;
-        width: 100%;
-      }
-
       .fp-topline,
       .fp-status {
         color: #dddddd;
         font-size: 13px;
         line-height: 1.2;
+        min-height: 18px;
       }
 
-      .fp-stage {
-        position: relative;
+      .fp-svg-wrap {
+        width: 100%;
+        height: 178px;
+        margin: 4px auto;
+      }
+
+      .fp-svg {
+        display: block;
         width: 100%;
         height: 100%;
-        overflow: hidden;
-        background:
-          linear-gradient(to bottom, rgba(60,60,60,0.35), rgba(0,0,0,0) 38%, rgba(0,0,0,0) 62%, rgba(60,60,60,0.25)),
-          #020202;
-        border: 1px solid rgba(102, 255, 102, 0.25);
+        background: radial-gradient(circle at center, #111 0%, #050505 70%, #000 100%);
       }
 
       .fp-line {
-        position: absolute;
-        background: rgba(102, 255, 102, 0.42);
-        transform-origin: center;
+        stroke: #2c7a2c;
+        stroke-width: 2;
+        fill: none;
       }
-
-      .fp-line.top-left { left: 0; top: 0; width: 52%; height: 1px; transform: rotate(19deg); }
-      .fp-line.top-right { right: 0; top: 0; width: 52%; height: 1px; transform: rotate(-19deg); }
-      .fp-line.bottom-left { left: 0; bottom: 0; width: 52%; height: 1px; transform: rotate(-19deg); }
-      .fp-line.bottom-right { right: 0; bottom: 0; width: 52%; height: 1px; transform: rotate(19deg); }
 
       .fp-frame {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        border: 1px solid rgba(102, 255, 102, 0.35);
-        transform: translate(-50%, -50%);
-        pointer-events: none;
+        stroke: #2c7a2c;
+        stroke-width: 1.5;
+        fill: rgba(0, 0, 0, 0.08);
       }
 
-      .fp-frame.d4 { width: 22%; height: 22%; opacity: 0.38; }
-      .fp-frame.d3 { width: 38%; height: 38%; opacity: 0.48; }
-      .fp-frame.d2 { width: 58%; height: 58%; opacity: 0.58; }
-      .fp-frame.d1 { width: 82%; height: 82%; opacity: 0.72; }
-
-      .fp-wall-panel {
-        position: absolute;
-        border: 1px solid rgba(170, 170, 170, 0.55);
-        background: rgba(130, 130, 130, 0.12);
+      .fp-wall-fill {
+        fill: rgba(160, 160, 160, 0.12);
+        stroke: #aaaaaa;
+        stroke-width: 3;
       }
 
-      .fp-left.d1 { left: 0; top: 6%; width: 18%; height: 88%; }
-      .fp-right.d1 { right: 0; top: 6%; width: 18%; height: 88%; }
-      .fp-left.d2 { left: 14%; top: 18%; width: 13%; height: 64%; opacity: 0.8; }
-      .fp-right.d2 { right: 14%; top: 18%; width: 13%; height: 64%; opacity: 0.8; }
-      .fp-left.d3 { left: 27%; top: 30%; width: 9%; height: 40%; opacity: 0.6; }
-      .fp-right.d3 { right: 27%; top: 30%; width: 9%; height: 40%; opacity: 0.6; }
-      .fp-left.d4 { left: 38%; top: 40%; width: 6%; height: 20%; opacity: 0.45; }
-      .fp-right.d4 { right: 38%; top: 40%; width: 6%; height: 20%; opacity: 0.45; }
+      .fp-door-fill {
+        fill: rgba(170, 170, 170, 0.08);
+        stroke: #aaaaaa;
+        stroke-width: 3;
+      }
 
-      .fp-center-wall {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        display: grid;
-        place-items: center;
-        border: 2px solid rgba(170, 170, 170, 0.75);
-        background: rgba(120, 120, 120, 0.18);
-        transform: translate(-50%, -50%);
-        color: #aaaaaa;
+      .fp-symbol {
+        font-family: "Courier New", Courier, monospace;
         font-weight: 700;
+        text-anchor: middle;
+        dominant-baseline: central;
+        fill: #eeeeee;
       }
 
-      .fp-center-wall.d1 { width: 70%; height: 70%; font-size: 48px; }
-      .fp-center-wall.d2 { width: 48%; height: 48%; font-size: 34px; opacity: 0.82; }
-      .fp-center-wall.d3 { width: 31%; height: 31%; font-size: 24px; opacity: 0.62; }
-      .fp-center-wall.d4 { width: 18%; height: 18%; font-size: 16px; opacity: 0.45; }
-
-      .fp-object {
-        position: absolute;
-        left: 50%;
-        display: grid;
-        place-items: center;
-        transform: translate(-50%, -50%);
-        font-weight: 700;
-        text-shadow: 0 0 8px #000000;
+      .fp-small {
+        font-size: 18px;
       }
 
-      .fp-object.d1 { top: 64%; font-size: 52px; }
-      .fp-object.d2 { top: 55%; font-size: 36px; opacity: 0.9; }
-      .fp-object.d3 { top: 49%; font-size: 24px; opacity: 0.72; }
-      .fp-object.d4 { top: 46%; font-size: 16px; opacity: 0.55; }
-
-      .fp-object.left.d1 { left: 27%; }
-      .fp-object.right.d1 { left: 73%; }
-      .fp-object.left.d2 { left: 35%; }
-      .fp-object.right.d2 { left: 65%; }
-      .fp-object.left.d3 { left: 41%; }
-      .fp-object.right.d3 { left: 59%; }
-      .fp-object.left.d4 { left: 45%; }
-      .fp-object.right.d4 { left: 55%; }
-
-      .fp-door { color: #aaaaaa; border-color: #aaaaaa; }
-      .fp-chest { color: #aaaaaa; }
-      .fp-exit { text-decoration: underline; }
-      .fp-ammo { color: #99ddff; }
-      .fp-enemy { color: #ff9999; }
-      .fp-enemy.injured { color: #ffcc66; }
-      .fp-enemy.critical { color: #ff5555; text-decoration: underline; }
-      .fp-enemy.target {
-        color: #000000;
-        background: #eeeeee;
-        padding: 0 0.25em;
-        border-radius: 4px;
+      .fp-mid {
+        font-size: 30px;
       }
 
-      .red { color: #ff6666; border-color: #ff6666; }
-      .blue { color: #66aaff; border-color: #66aaff; }
-      .yellow { color: #ffee66; border-color: #ffee66; }
-      .green { color: #77ff77; border-color: #77ff77; }
+      .fp-large {
+        font-size: 50px;
+      }
+
+      .fp-huge {
+        font-size: 70px;
+      }
+
+      .fp-green { fill: #66ff66; stroke: #66ff66; }
+      .fp-gray { fill: #aaaaaa; stroke: #aaaaaa; }
+      .fp-red { fill: #ff6666; stroke: #ff6666; }
+      .fp-blue { fill: #66aaff; stroke: #66aaff; }
+      .fp-yellow { fill: #ffee66; stroke: #ffee66; }
+      .fp-keygreen { fill: #77ff77; stroke: #77ff77; }
+      .fp-white { fill: #eeeeee; stroke: #eeeeee; }
+      .fp-enemy { fill: #ff9999; stroke: #ff9999; }
+      .fp-enemy-injured { fill: #ffcc66; stroke: #ffcc66; }
+      .fp-enemy-critical { fill: #ff5555; stroke: #ff5555; }
+      .fp-target-bg { fill: #eeeeee; stroke: #eeeeee; }
 
       .mini-map {
         display: block;
@@ -386,24 +341,20 @@
         }
 
         .first-person-view {
-          height: 188px;
+          min-height: 186px;
           padding: 5px;
+        }
+
+        .fp-svg-wrap {
+          height: 138px;
+          margin: 3px auto;
         }
 
         .fp-topline,
         .fp-status {
           font-size: 11px;
+          min-height: 15px;
         }
-
-        .fp-center-wall.d1 { font-size: 40px; }
-        .fp-center-wall.d2 { font-size: 28px; }
-        .fp-center-wall.d3 { font-size: 20px; }
-        .fp-center-wall.d4 { font-size: 14px; }
-
-        .fp-object.d1 { font-size: 44px; }
-        .fp-object.d2 { font-size: 30px; }
-        .fp-object.d3 { font-size: 21px; }
-        .fp-object.d4 { font-size: 14px; }
 
         .mini-map {
           font-size: 9px;
@@ -461,7 +412,7 @@
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: first-person-3d-1</div>
+        <div id="build" class="build">Build: first-person-perspective-3</div>
       </header>
 
       <section class="hud" aria-live="polite">
@@ -532,6 +483,6 @@
       </section>
     </main>
 
-    <script src="./main.js?v=fp3d1"></script>
+    <script src="./main.js?v=fp3"></script>
   </body>
 </html>
