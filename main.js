@@ -470,7 +470,6 @@ function placeChests(rooms, doors, start, exit) {
 
 function chooseKeyRoomAwayFrom(rooms, avoidIndex, disallowed = new Set()) {
   const avoid = rooms[avoidIndex];
-
   const candidates = rooms
     .map((room, index) => ({ room, index }))
     .filter(({ index }) => !disallowed.has(index));
@@ -489,7 +488,6 @@ function chooseKeyRoomAwayFrom(rooms, avoidIndex, disallowed = new Set()) {
 
 function chooseKeyRoomNearStart(rooms, startIndex, disallowed = new Set()) {
   const startRoom = rooms[startIndex];
-
   const candidates = rooms
     .map((room, index) => ({ room, index }))
     .filter(({ index }) => !disallowed.has(index));
@@ -610,12 +608,12 @@ function facingVector() {
   return DIR_VECTORS[game.player.dir];
 }
 
-function leftVector() {
+function rightVector() {
   const table = {
-    north: { x: -1, y: 0 },
-    east: { x: 0, y: -1 },
-    south: { x: 1, y: 0 },
-    west: { x: 0, y: 1 }
+    north: { x: 1, y: 0 },
+    east: { x: 0, y: 1 },
+    south: { x: -1, y: 0 },
+    west: { x: 0, y: -1 }
   };
   return table[game.player.dir];
 }
@@ -629,6 +627,16 @@ function miniMapOrigin() {
   return {
     x: clamp(game.player.x - Math.floor(MINI_WIDTH / 2), 0, MAP_WIDTH - MINI_WIDTH),
     y: clamp(game.player.y - Math.floor(MINI_HEIGHT / 2), 0, MAP_HEIGHT - MINI_HEIGHT)
+  };
+}
+
+function relativeTile(depth, lateral) {
+  const f = facingVector();
+  const r = rightVector();
+
+  return {
+    x: game.player.x + f.x * depth + r.x * lateral,
+    y: game.player.y + f.y * depth + r.y * lateral
   };
 }
 
@@ -741,31 +749,16 @@ function addKey(color) {
   }
 }
 
-function relativeTile(depth, lateral) {
-  const f = facingVector();
-  const l = leftVector();
-  return {
-    x: game.player.x + f.x * depth + l.x * lateral,
-    y: game.player.y + f.y * depth + l.y * lateral
-  };
-}
-
-function canSeeRelative(depth, lateral) {
-  const t = relativeTile(depth, lateral);
-  if (!inBounds(t.x, t.y)) return false;
-  return hasLine(game.player.x, game.player.y, t.x, t.y, true);
-}
-
 function isInForwardView(entity) {
   const f = facingVector();
-  const l = leftVector();
+  const r = rightVector();
   const dx = entity.x - game.player.x;
   const dy = entity.y - game.player.y;
   const depth = dx * f.x + dy * f.y;
-  const lateral = dx * l.x + dy * l.y;
+  const lateral = dx * r.x + dy * r.y;
 
   if (depth < 1 || depth > FIRST_PERSON_DEPTH) return false;
-  if (Math.abs(lateral) > Math.min(depth, 1)) return false;
+  if (Math.abs(lateral) > depth) return false;
   return hasLine(game.player.x, game.player.y, entity.x, entity.y, true);
 }
 
@@ -783,14 +776,12 @@ function isShootable(enemy) {
   const targetKey = key(enemy.x, enemy.y);
   if (!game.visible.has(targetKey)) return false;
 
+  if (isInForwardView(enemy)) return true;
+
   const shooter = { x: game.player.x, y: game.player.y };
   const target = { x: enemy.x, y: enemy.y };
 
-  if (sameRoom(shooter, target)) {
-    return isInForwardView(enemy) || hasLine(game.player.x, game.player.y, enemy.x, enemy.y, true);
-  }
-
-  return isInForwardView(enemy);
+  return sameRoom(shooter, target) && hasLine(game.player.x, game.player.y, enemy.x, enemy.y, true);
 }
 
 function ensureTargetValid(autoSelect = true) {
@@ -1340,138 +1331,286 @@ function render() {
 }
 
 function renderFirstPersonView() {
-  const f = facingVector();
-  const frontX = game.player.x + f.x;
-  const frontY = game.player.y + f.y;
-
-  const frontWall = !inBounds(frontX, frontY) || game.walls.has(key(frontX, frontY));
-  const frontDoor = doorAt(frontX, frontY);
-  const frontChest = chestAt(frontX, frontY);
-  const frontExit = game.exit.x === frontX && game.exit.y === frontY;
-
-  let status = "Open space ahead.";
-  if (frontWall) status = "Wall ahead.";
-  if (frontDoor) status = frontDoor.locked ? `${titleColor(frontDoor.color)} locked door ahead.` : "Doorway ahead.";
-  if (frontChest) status = frontChest.locked ? `${titleColor(frontChest.lockColor)} locked chest ahead.` : "Chest ahead.";
-  if (frontExit) status = "Exit ahead.";
-
+  const scene = scanPerspectiveScene();
   const compass = `Facing ${game.player.dir.toUpperCase()}`;
   const target = game.selectedTargetKey ? getEnemyByKey(game.selectedTargetKey) : null;
   const targetText = target ? `Target: ${enemySymbol(target)}` : "Target: none";
+  const svg = buildPerspectiveSvg(scene);
 
   el.firstPersonView.innerHTML = `
     <div class="fp-panel">
       <div class="fp-topline">${escapeHtml(compass)} · ${escapeHtml(targetText)}</div>
-      <div class="fp-stage">
-        <div class="fp-line top-left"></div>
-        <div class="fp-line top-right"></div>
-        <div class="fp-line bottom-left"></div>
-        <div class="fp-line bottom-right"></div>
-        ${renderPerspectiveScene()}
-      </div>
-      <div class="fp-status">${escapeHtml(status)}</div>
+      <div class="fp-svg-wrap">${svg}</div>
+      <div class="fp-status">${escapeHtml(scene.status)}</div>
     </div>
   `;
 }
 
-function renderPerspectiveScene() {
-  const parts = [];
+function scanPerspectiveScene() {
+  const centerTiles = [];
+  const leftTiles = [];
+  const rightTiles = [];
+  const objects = [];
 
-  for (let depth = 4; depth >= 1; depth--) {
-    parts.push(`<div class="fp-frame d${depth}"></div>`);
-  }
+  let status = "Open space ahead.";
+  let blockedAt = null;
 
-  for (let depth = 1; depth <= 4; depth++) {
+  for (let depth = 1; depth <= FIRST_PERSON_DEPTH; depth++) {
     const center = relativeTile(depth, 0);
     const left = relativeTile(depth, -1);
     const right = relativeTile(depth, 1);
 
-    if (!isOpenTile(left.x, left.y) && canSeeSide(depth, -1)) {
-      parts.push(`<div class="fp-wall-panel fp-left d${depth}"></div>`);
+    centerTiles.push({ depth, ...center, desc: describeWorldTile(center.x, center.y) });
+    leftTiles.push({ depth, ...left, desc: describeWorldTile(left.x, left.y) });
+    rightTiles.push({ depth, ...right, desc: describeWorldTile(right.x, right.y) });
+
+    for (let lateral = -depth; lateral <= depth; lateral++) {
+      const pos = relativeTile(depth, lateral);
+      if (!inBounds(pos.x, pos.y)) continue;
+
+      const obj = describeObjectTile(pos.x, pos.y);
+      if (!obj) continue;
+      if (!hasLine(game.player.x, game.player.y, pos.x, pos.y, true) && obj.type !== "wall") continue;
+
+      objects.push({ ...obj, x: pos.x, y: pos.y, depth, lateral });
     }
 
-    if (!isOpenTile(right.x, right.y) && canSeeSide(depth, 1)) {
-      parts.push(`<div class="fp-wall-panel fp-right d${depth}"></div>`);
-    }
+    const centerDesc = describeWorldTile(center.x, center.y);
 
-    const centerThing = describePerspectiveTile(center.x, center.y);
-
-    if (centerThing && centerThing.blocks) {
-      parts.push(`<div class="fp-center-wall d${depth} ${centerThing.className}">${escapeHtml(centerThing.label)}</div>`);
-      break;
-    }
-
-    for (const lateral of [-1, 0, 1]) {
-      const t = relativeTile(depth, lateral);
-      if (!canSeeRelative(depth, lateral)) continue;
-
-      const thing = describePerspectiveTile(t.x, t.y);
-      if (!thing || thing.blocks) continue;
-
-      const sideClass = lateral < 0 ? "left" : lateral > 0 ? "right" : "center";
-      parts.push(`<div class="fp-object ${sideClass} d${depth} ${thing.className}">${escapeHtml(thing.label)}</div>`);
+    if (blockedAt === null && (centerDesc.type === "wall" || centerDesc.type === "door")) {
+      blockedAt = depth;
     }
   }
 
-  return parts.join("");
+  const front = centerTiles[0]?.desc;
+  if (front) {
+    if (front.type === "wall") status = "Wall ahead.";
+    if (front.type === "door") status = front.locked ? `${titleColor(front.color)} locked door ahead.` : "Doorway ahead.";
+    if (front.type === "chest") status = front.locked ? `${titleColor(front.lockColor)} locked chest ahead.` : "Chest ahead.";
+    if (front.type === "exit") status = "Exit ahead.";
+    if (front.type === "enemy") status = "Enemy ahead.";
+    if (front.type === "ammo") status = "Ammunition ahead.";
+  }
+
+  return {
+    centerTiles,
+    leftTiles,
+    rightTiles,
+    objects,
+    blockedAt,
+    status
+  };
 }
 
-function describePerspectiveTile(x, y) {
-  if (!inBounds(x, y)) return { label: "#", className: "fp-wall", blocks: true };
+function describeWorldTile(x, y) {
+  if (!inBounds(x, y)) return { type: "wall" };
+
+  const p = key(x, y);
+  const foe = enemyAt(x, y);
+  if (foe && game.visible.has(p)) return { type: "enemy", enemy: foe };
+
+  const chest = chestAt(x, y);
+  if (chest) return { type: "chest", locked: chest.locked, lockColor: chest.lockColor };
+
+  const door = doorAt(x, y);
+  if (door) return { type: "door", locked: door.locked, color: door.color };
+
+  if (game.exit.x === x && game.exit.y === y) return { type: "exit", color: game.exit.color };
+
+  const pickup = pickupAt(x, y);
+  if (pickup) return { type: "ammo" };
+
+  if (game.walls.has(p)) return { type: "wall" };
+  if (game.floors.has(p)) return { type: "floor" };
+
+  return { type: "void" };
+}
+
+function describeObjectTile(x, y) {
+  const desc = describeWorldTile(x, y);
+  if (desc.type === "floor" || desc.type === "void") return null;
 
   const p = key(x, y);
 
-  const foe = enemyAt(x, y);
-  if (foe && game.visible.has(p)) {
-    const targetClass = game.selectedTargetKey === p ? " target" : "";
+  if (desc.type === "enemy") {
+    const condition = healthCondition(desc.enemy.hp, desc.enemy.maxHp);
     return {
-      label: enemySymbol(foe),
-      className: `fp-enemy ${healthCondition(foe.hp, foe.maxHp)}${targetClass}`,
-      blocks: false
+      type: "enemy",
+      label: enemySymbol(desc.enemy),
+      colorClass: condition === "healthy" ? "fp-enemy" : `fp-enemy-${condition}`,
+      selected: game.selectedTargetKey === p
     };
   }
 
-  const chest = chestAt(x, y);
-  if (chest) {
+  if (desc.type === "chest") {
     return {
+      type: "chest",
       label: "C",
-      className: chest.locked ? `fp-chest ${chest.lockColor}` : "fp-chest",
-      blocks: false
+      colorClass: desc.locked ? colorSvgClass(desc.lockColor) : "fp-gray"
     };
   }
 
-  const d = doorAt(x, y);
-  if (d) {
+  if (desc.type === "door") {
     return {
+      type: "door",
       label: "D",
-      className: d.locked ? `fp-door ${d.color}` : "fp-door",
-      blocks: false
+      colorClass: desc.locked ? colorSvgClass(desc.color) : "fp-gray",
+      locked: desc.locked
     };
   }
 
-  if (game.exit.x === x && game.exit.y === y) {
-    return { label: "E", className: `fp-exit ${game.exit.color}`, blocks: false };
+  if (desc.type === "exit") {
+    return {
+      type: "exit",
+      label: "E",
+      colorClass: colorSvgClass(desc.color)
+    };
   }
 
-  const pickup = pickupAt(x, y);
-  if (pickup) return { label: "a", className: "fp-ammo", blocks: false };
+  if (desc.type === "ammo") {
+    return {
+      type: "ammo",
+      label: "a",
+      colorClass: "fp-blue"
+    };
+  }
 
-  if (game.walls.has(p)) return { label: "#", className: "fp-wall", blocks: true };
+  if (desc.type === "wall") {
+    return {
+      type: "wall",
+      label: "#",
+      colorClass: "fp-gray"
+    };
+  }
 
   return null;
 }
 
-function isOpenTile(x, y) {
-  if (!inBounds(x, y)) return false;
-  return !game.walls.has(key(x, y));
+function colorSvgClass(color) {
+  if (color === "red") return "fp-red";
+  if (color === "blue") return "fp-blue";
+  if (color === "yellow") return "fp-yellow";
+  if (color === "green") return "fp-keygreen";
+  return "fp-gray";
 }
 
-function canSeeSide(depth, lateral) {
-  const t = relativeTile(depth, lateral);
-  if (!inBounds(t.x, t.y)) return true;
-  if (depth === 1) return true;
-  const center = relativeTile(depth - 1, 0);
-  return hasLine(game.player.x, game.player.y, center.x, center.y, true);
+function buildPerspectiveSvg(scene) {
+  const frames = [
+    { depth: 1, x: 35, y: 20, w: 530, h: 250 },
+    { depth: 2, x: 105, y: 50, w: 390, h: 190 },
+    { depth: 3, x: 170, y: 82, w: 260, h: 128 },
+    { depth: 4, x: 235, y: 114, w: 130, h: 66 }
+  ];
+
+  const parts = [];
+
+  parts.push(`<svg class="fp-svg" viewBox="0 0 600 290" aria-hidden="true">`);
+
+  for (let i = 0; i < frames.length - 1; i++) {
+    const a = frames[i];
+    const b = frames[i + 1];
+    parts.push(`<line class="fp-line" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" />`);
+    parts.push(`<line class="fp-line" x1="${a.x + a.w}" y1="${a.y}" x2="${b.x + b.w}" y2="${b.y}" />`);
+    parts.push(`<line class="fp-line" x1="${a.x}" y1="${a.y + a.h}" x2="${b.x}" y2="${b.y + b.h}" />`);
+    parts.push(`<line class="fp-line" x1="${a.x + a.w}" y1="${a.y + a.h}" x2="${b.x + b.w}" y2="${b.y + b.h}" />`);
+  }
+
+  for (const frame of frames) {
+    parts.push(`<rect class="fp-frame" x="${frame.x}" y="${frame.y}" width="${frame.w}" height="${frame.h}" />`);
+  }
+
+  for (const frame of frames) {
+    const center = scene.centerTiles.find((t) => t.depth === frame.depth);
+    if (!center) continue;
+
+    if (center.desc.type === "wall") {
+      parts.push(`<rect class="fp-wall-fill" x="${frame.x}" y="${frame.y}" width="${frame.w}" height="${frame.h}" />`);
+      parts.push(svgText("#", frame.x + frame.w / 2, frame.y + frame.h / 2, textSizeForDepth(frame.depth), "fp-gray"));
+      break;
+    }
+
+    if (center.desc.type === "door") {
+      const doorClass = center.desc.locked ? colorSvgClass(center.desc.color) : "fp-gray";
+      const doorW = frame.w * 0.34;
+      const doorH = frame.h * 0.58;
+      const doorX = frame.x + frame.w / 2 - doorW / 2;
+      const doorY = frame.y + frame.h * 0.27;
+      parts.push(`<rect class="fp-door-fill ${doorClass}" x="${doorX}" y="${doorY}" width="${doorW}" height="${doorH}" />`);
+      parts.push(svgText("D", frame.x + frame.w / 2, frame.y + frame.h / 2, textSizeForDepth(frame.depth), doorClass));
+      break;
+    }
+  }
+
+  const sideMarks = sideWallMarks(scene, frames);
+  parts.push(...sideMarks);
+
+  const importantObjects = scene.objects
+    .filter((obj) => obj.type !== "wall" && obj.type !== "door")
+    .sort((a, b) => b.depth - a.depth || Math.abs(b.lateral) - Math.abs(a.lateral));
+
+  for (const obj of importantObjects) {
+    const point = projectToView(obj.depth, obj.lateral);
+    const size = textSizeForDepth(obj.depth);
+    if (obj.selected) {
+      parts.push(`<rect class="fp-target-bg" x="${point.x - size * 0.36}" y="${point.y - size * 0.42}" width="${size * 0.72}" height="${size * 0.84}" />`);
+      parts.push(svgText(obj.label, point.x, point.y, size, "fp-white"));
+    } else {
+      parts.push(svgText(obj.label, point.x, point.y, size, obj.colorClass));
+    }
+  }
+
+  parts.push(`</svg>`);
+  return parts.join("");
+}
+
+function sideWallMarks(scene, frames) {
+  const parts = [];
+
+  for (const side of ["left", "right"]) {
+    const tiles = side === "left" ? scene.leftTiles : scene.rightTiles;
+
+    for (const tile of tiles) {
+      if (tile.desc.type !== "wall") continue;
+
+      const frame = frames.find((f) => f.depth === tile.depth);
+      if (!frame) continue;
+
+      const x = side === "left" ? frame.x + 18 : frame.x + frame.w - 18;
+      const y = frame.y + frame.h / 2;
+      parts.push(svgText("#", x, y, textSizeForDepth(tile.depth) * 0.55, "fp-gray"));
+      break;
+    }
+  }
+
+  return parts;
+}
+
+function projectToView(depth, lateral) {
+  const frames = [
+    null,
+    { x: 300, y: 172, spread: 190 },
+    { x: 300, y: 150, spread: 135 },
+    { x: 300, y: 134, spread: 88 },
+    { x: 300, y: 124, spread: 46 }
+  ];
+
+  const frame = frames[depth] || frames[4];
+
+  return {
+    x: frame.x + lateral * frame.spread / Math.max(depth, 1),
+    y: frame.y
+  };
+}
+
+function textSizeForDepth(depth) {
+  if (depth === 1) return 70;
+  if (depth === 2) return 48;
+  if (depth === 3) return 34;
+  return 24;
+}
+
+function svgText(label, x, y, size, className) {
+  return `<text class="fp-symbol ${className}" x="${x}" y="${y}" font-size="${size}">${escapeHtml(label)}</text>`;
 }
 
 function renderMiniMap() {
