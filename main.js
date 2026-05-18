@@ -1,9 +1,10 @@
-const VIEW_WIDTH = 32;
-const VIEW_HEIGHT = 18;
 const MAP_WIDTH = 72;
 const MAP_HEIGHT = 40;
+const MINI_WIDTH = 21;
+const MINI_HEIGHT = 11;
 const MAX_LOG_LINES = 4;
 const VIS_RADIUS = 8;
+const FIRST_PERSON_DEPTH = 5;
 
 const BASE_MAX_HP = 10;
 const BASE_CLIP_SIZE = 6;
@@ -15,12 +16,13 @@ const BASE_ENEMY_CAP = 7;
 const MISS_CHANCE = 0.08;
 
 const COLORS = ["red", "blue", "yellow", "green"];
+const FACINGS = ["north", "east", "south", "west"];
 
-const DIRS = {
-  up: [0, -1],
-  down: [0, 1],
-  left: [-1, 0],
-  right: [1, 0]
+const DIR_VECTORS = {
+  north: { x: 0, y: -1 },
+  east: { x: 1, y: 0 },
+  south: { x: 0, y: 1 },
+  west: { x: -1, y: 0 }
 };
 
 const ITEM_POOL = ["Health Kit", "Body Armor", "Ammo Box", "Extended Magazine", "Improved Barrel", "Map"];
@@ -34,44 +36,86 @@ const inBounds = (x, y) => x >= 0 && y >= 0 && x < MAP_WIDTH && y < MAP_HEIGHT;
 const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 const titleColor = (color) => color.charAt(0).toUpperCase() + color.slice(1);
 
+function byId(...ids) {
+  for (const id of ids) {
+    const found = document.getElementById(id);
+    if (found) return found;
+  }
+  return null;
+}
+
 function wireElements() {
   Object.assign(el, {
-    grid: document.getElementById("grid"),
-    level: document.getElementById("level"),
-    condition: document.getElementById("condition"),
-    mode: document.getElementById("mode"),
-    shots: document.getElementById("shots"),
-    turn: document.getElementById("turn"),
-    kills: document.getElementById("kills"),
-    enemyCount: document.getElementById("enemy-count"),
-    log: document.getElementById("message-log"),
-    inventory: document.getElementById("inventory"),
-    build: document.getElementById("build"),
-    chestOverlay: document.getElementById("chest-overlay"),
-    chestText: document.getElementById("chest-text"),
-    takeBtn: document.getElementById("take-btn"),
-    leaveBtn: document.getElementById("leave-btn"),
-    levelOverlay: document.getElementById("level-overlay"),
-    levelText: document.getElementById("level-text"),
-    nextLevelBtn: document.getElementById("next-level-btn"),
-    levelRestartBtn: document.getElementById("level-restart-btn"),
+    level: byId("level"),
+    condition: byId("condition"),
+    mode: byId("mode"),
+    shots: byId("shots"),
+    turn: byId("turn"),
+    kills: byId("kills"),
+    enemyCount: byId("enemy-count"),
+    log: byId("message-log"),
+    inventory: byId("inventory"),
+
+    firstPersonView: byId("first-person-view", "fp-view", "view", "grid"),
+    miniMap: byId("mini-map", "minimap", "map"),
+
+    chestOverlay: byId("chest-overlay"),
+    chestText: byId("chest-text"),
+    takeBtn: byId("take-btn"),
+    leaveBtn: byId("leave-btn"),
+
+    levelOverlay: byId("level-overlay"),
+    levelText: byId("level-text"),
+    nextLevelBtn: byId("next-level-btn"),
+    levelRestartBtn: byId("level-restart-btn"),
+
     dpad: document.querySelector(".dpad"),
-    targetBtn: document.getElementById("target-btn"),
-    aimBtn: document.getElementById("aim-btn"),
-    fireBtn: document.getElementById("fire-btn"),
-    waitBtn: document.getElementById("wait-btn"),
-    reloadBtn: document.getElementById("reload-btn"),
-    restartBtn: document.getElementById("restart-btn")
+    forwardBtn: byId("forward-btn"),
+    backBtn: byId("back-btn"),
+    leftBtn: byId("turn-left-btn", "left-btn"),
+    rightBtn: byId("turn-right-btn", "right-btn"),
+
+    targetBtn: byId("target-btn"),
+    aimBtn: byId("aim-btn"),
+    fireBtn: byId("fire-btn"),
+    waitBtn: byId("wait-btn"),
+    reloadBtn: byId("reload-btn"),
+    restartBtn: byId("restart-btn")
   });
 }
 
 function hasRequiredElements() {
-  return Object.values(el).every(Boolean);
+  return Boolean(
+    el.level &&
+    el.condition &&
+    el.mode &&
+    el.shots &&
+    el.turn &&
+    el.kills &&
+    el.enemyCount &&
+    el.log &&
+    el.inventory &&
+    el.firstPersonView &&
+    el.chestOverlay &&
+    el.chestText &&
+    el.takeBtn &&
+    el.leaveBtn &&
+    el.levelOverlay &&
+    el.levelText &&
+    el.nextLevelBtn &&
+    el.levelRestartBtn &&
+    el.targetBtn &&
+    el.aimBtn &&
+    el.fireBtn &&
+    el.waitBtn &&
+    el.reloadBtn &&
+    el.restartBtn
+  );
 }
 
 function showBootError(message) {
   const text = `Startup error: ${message}`;
-  if (el.grid) el.grid.textContent = "The game failed to launch.";
+  if (el.firstPersonView) el.firstPersonView.textContent = "The game failed to launch.";
   if (el.log) el.log.innerHTML = `<p>${escapeHtml(text)}</p>`;
   console.error(text);
 }
@@ -114,6 +158,7 @@ function startLevel(carry) {
   game = {
     level: carry.level,
     totalKills: carry.totalKills || 0,
+
     walls: map.walls,
     floors: map.floors,
     rooms: map.rooms,
@@ -121,19 +166,30 @@ function startLevel(carry) {
     chests: map.chests,
     pickups: [],
     exit: map.exit,
+
     visible: new Set(),
     discovered: new Set(),
     enemies: [],
     inventory: structuredCloneInventory(carry.inventory || []),
     keys: [...new Set(carry.keys || [])],
+
     pendingChest: null,
     selectedTargetKey: null,
     aiming: false,
-    player: { x: map.start.x, y: map.start.y, hp: carry.hp, maxHp: carry.maxHp },
+
+    player: {
+      x: map.start.x,
+      y: map.start.y,
+      dir: "north",
+      hp: carry.hp,
+      maxHp: carry.maxHp
+    },
+
     shots: carry.shots,
     maxShots: carry.maxShots,
     reserveAmmo: carry.reserveAmmo,
     shotDamage: carry.shotDamage,
+
     mapFound: false,
     turn: 0,
     kills: 0,
@@ -175,6 +231,7 @@ function generateDungeon() {
       w: randInt(6, 10),
       h: randInt(4, 7)
     };
+
     finishRoom(firstRoom);
     rooms.push(firstRoom);
     carveRoom(firstRoom, walls, floors);
@@ -407,7 +464,6 @@ function placeChests(rooms, doors, start, exit) {
   function placeChestInRoom(roomIndex, items, locked = false, lockColor = null) {
     if (roomIndex === null || roomIndex === undefined) return false;
     if (chestsByRoom.has(roomIndex)) return false;
-
     chestsByRoom.set(roomIndex, { items, locked, lockColor });
     return true;
   }
@@ -415,6 +471,7 @@ function placeChests(rooms, doors, start, exit) {
   const exitRoomIndex = roomIndexForPoint(rooms, exit);
   const startRoomIndex = roomIndexForPoint(rooms, start);
   const exitKeyRoom = chooseKeyRoomAwayFrom(rooms, exitRoomIndex, new Set([exitRoomIndex]));
+
   placeChestInRoom(exitKeyRoom, [`${titleColor(exit.color)} Key`], false, null);
   usedImportantRooms.add(exitKeyRoom);
 
@@ -578,6 +635,7 @@ function fallbackDungeon() {
     { x: 19, y: 8, w: 10, h: 6 },
     { x: 30, y: 8, w: 10, h: 6 }
   ];
+
   rooms.forEach(finishRoom);
   rooms.forEach((room) => carveRoom(room, walls, floors));
 
@@ -609,10 +667,34 @@ function shuffle(arr) {
   return arr;
 }
 
-function cameraOrigin() {
+function facingVector() {
+  return DIR_VECTORS[game.player.dir];
+}
+
+function leftVector() {
+  const order = {
+    north: { x: -1, y: 0 },
+    east: { x: 0, y: -1 },
+    south: { x: 1, y: 0 },
+    west: { x: 0, y: 1 }
+  };
+  return order[game.player.dir];
+}
+
+function rightVector() {
+  const left = leftVector();
+  return { x: -left.x, y: -left.y };
+}
+
+function rotateFacing(delta) {
+  const current = FACINGS.indexOf(game.player.dir);
+  game.player.dir = FACINGS[(current + delta + FACINGS.length) % FACINGS.length];
+}
+
+function miniMapOrigin() {
   return {
-    x: clamp(game.player.x - Math.floor(VIEW_WIDTH / 2), 0, MAP_WIDTH - VIEW_WIDTH),
-    y: clamp(game.player.y - Math.floor(VIEW_HEIGHT / 2), 0, MAP_HEIGHT - VIEW_HEIGHT)
+    x: clamp(game.player.x - Math.floor(MINI_WIDTH / 2), 0, MAP_WIDTH - MINI_WIDTH),
+    y: clamp(game.player.y - Math.floor(MINI_HEIGHT / 2), 0, MAP_HEIGHT - MINI_HEIGHT)
   };
 }
 
@@ -725,6 +807,19 @@ function addKey(color) {
   }
 }
 
+function isInForwardView(entity) {
+  const f = facingVector();
+  const l = leftVector();
+  const dx = entity.x - game.player.x;
+  const dy = entity.y - game.player.y;
+  const depth = dx * f.x + dy * f.y;
+  const lateral = dx * l.x + dy * l.y;
+
+  if (depth < 1 || depth > FIRST_PERSON_DEPTH) return false;
+  if (Math.abs(lateral) > depth) return false;
+  return hasLine(game.player.x, game.player.y, entity.x, entity.y, true);
+}
+
 function visibleShootableEnemies() {
   return game.enemies
     .filter((enemy) => isShootable(enemy))
@@ -741,15 +836,12 @@ function isShootable(enemy) {
 
   const shooter = { x: game.player.x, y: game.player.y };
   const target = { x: enemy.x, y: enemy.y };
-  const dx = enemy.x - game.player.x;
-  const dy = enemy.y - game.player.y;
-  const aligned = dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy);
 
   if (sameRoom(shooter, target)) {
-    return hasLine(game.player.x, game.player.y, enemy.x, enemy.y, true);
+    return isInForwardView(enemy) || hasLine(game.player.x, game.player.y, enemy.x, enemy.y, true);
   }
 
-  return aligned && hasLine(game.player.x, game.player.y, enemy.x, enemy.y, true);
+  return isInForwardView(enemy);
 }
 
 function ensureTargetValid(autoSelect = true) {
@@ -847,7 +939,37 @@ function enemyCap() {
   return Math.min(BASE_ENEMY_CAP + Math.floor((game.level - 1) / 2), 14);
 }
 
-function move(dx, dy) {
+function turnLeft() {
+  resolveAction(() => {
+    game.aiming = false;
+    rotateFacing(-1);
+    game.turn++;
+    addLog(`You turn ${game.player.dir}.`);
+    return true;
+  });
+}
+
+function turnRight() {
+  resolveAction(() => {
+    game.aiming = false;
+    rotateFacing(1);
+    game.turn++;
+    addLog(`You turn ${game.player.dir}.`);
+    return true;
+  });
+}
+
+function moveForward() {
+  const f = facingVector();
+  moveBy(f.x, f.y, "forward");
+}
+
+function moveBackward() {
+  const f = facingVector();
+  moveBy(-f.x, -f.y, "back");
+}
+
+function moveBy(dx, dy, label = "move") {
   resolveAction(() => {
     const nx = game.player.x + dx;
     const ny = game.player.y + dy;
@@ -1147,8 +1269,7 @@ function useItem(index) {
     if (!item) return false;
 
     if (item.name === "Health Kit") {
-      const healed = Math.min(3, game.player.maxHp - game.player.hp);
-      game.player.hp += healed;
+      game.player.hp = Math.min(game.player.maxHp, game.player.hp + 3);
       game.inventory.splice(index, 1);
       game.turn++;
       addLog(`You use a Health Kit and recover to ${conditionLabel(healthCondition(game.player.hp, game.player.maxHp)).toLowerCase()}.`);
@@ -1187,7 +1308,6 @@ function takeItem(item) {
   }
 
   if (item === "Health Kit") game.inventory.push({ name: "Health Kit" });
-
   if (item === "Body Armor") game.inventory.push({ name: "Body Armor", armor: 3 });
 
   if (item === "Ammo Box") {
@@ -1266,91 +1386,172 @@ function render() {
   el.kills.textContent = game.kills;
   el.enemyCount.textContent = game.enemies.length;
 
-  const camera = cameraOrigin();
+  renderFirstPersonView();
+  renderMiniMap();
+  el.log.innerHTML = game.logs.map((msg) => `<p>${escapeHtml(msg)}</p>`).join("");
+  renderInventory();
+}
+
+function renderFirstPersonView() {
+  const visibleObjects = objectsInForwardView();
+  const forward = facingVector();
+  const frontX = game.player.x + forward.x;
+  const frontY = game.player.y + forward.y;
+
+  const frontWall = !inBounds(frontX, frontY) || game.walls.has(key(frontX, frontY));
+  const frontDoor = doorAt(frontX, frontY);
+  const frontChest = chestAt(frontX, frontY);
+  const frontExit = game.exit.x === frontX && game.exit.y === frontY;
+
+  let status = "Open space ahead.";
+  if (frontWall) status = "Wall ahead.";
+  if (frontDoor) status = frontDoor.locked ? `${titleColor(frontDoor.color)} locked door ahead.` : "Doorway ahead.";
+  if (frontChest) status = frontChest.locked ? `${titleColor(frontChest.lockColor)} locked chest ahead.` : "Chest ahead.";
+  if (frontExit) status = "Exit ahead.";
+
+  const lanes = [];
+
+  for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
+    const rowObjects = visibleObjects.filter((obj) => obj.depth === depth);
+    lanes.push(renderDepthBand(depth, rowObjects));
+  }
+
+  const compass = `Facing ${game.player.dir.toUpperCase()}`;
+  const target = game.selectedTargetKey ? getEnemyByKey(game.selectedTargetKey) : null;
+  const targetText = target ? `Target: ${enemySymbol(target)}` : "Target: none";
+
+  el.firstPersonView.innerHTML = `
+    <div class="fp-panel">
+      <div class="fp-topline">${escapeHtml(compass)} · ${escapeHtml(targetText)}</div>
+      <div class="fp-scene">${lanes.join("")}</div>
+      <div class="fp-status">${escapeHtml(status)}</div>
+    </div>
+  `;
+}
+
+function objectsInForwardView() {
+  const objects = [];
+  const f = facingVector();
+  const l = leftVector();
+
+  for (let depth = 1; depth <= FIRST_PERSON_DEPTH; depth++) {
+    for (let lateral = -depth; lateral <= depth; lateral++) {
+      const x = game.player.x + f.x * depth + l.x * lateral;
+      const y = game.player.y + f.y * depth + l.y * lateral;
+
+      if (!inBounds(x, y)) continue;
+      if (!hasLine(game.player.x, game.player.y, x, y, true) && !game.walls.has(key(x, y))) continue;
+
+      const obj = describeTile(x, y);
+      if (obj) objects.push({ ...obj, x, y, depth, lateral });
+    }
+  }
+
+  return objects;
+}
+
+function describeTile(x, y) {
+  const p = key(x, y);
+  const foe = enemyAt(x, y);
+  if (foe && game.visible.has(p)) {
+    return { type: "enemy", label: enemySymbol(foe), className: `fp-enemy ${healthCondition(foe.hp, foe.maxHp)}${game.selectedTargetKey === p ? " target" : ""}` };
+  }
+
+  const chest = chestAt(x, y);
+  if (chest) {
+    return { type: "chest", label: "C", className: chest.locked ? `fp-chest ${chest.lockColor}` : "fp-chest" };
+  }
+
+  const d = doorAt(x, y);
+  if (d) {
+    return { type: "door", label: "D", className: d.locked ? `fp-door ${d.color}` : "fp-door" };
+  }
+
+  if (game.exit.x === x && game.exit.y === y) {
+    return { type: "exit", label: "E", className: `fp-exit ${game.exit.color}` };
+  }
+
+  const pickup = pickupAt(x, y);
+  if (pickup) {
+    return { type: "ammo", label: "a", className: "fp-ammo" };
+  }
+
+  if (game.walls.has(p)) {
+    return { type: "wall", label: "#", className: "fp-wall" };
+  }
+
+  return null;
+}
+
+function renderDepthBand(depth, objects) {
+  const widthClass = `depth-${depth}`;
+  const sorted = objects.sort((a, b) => a.lateral - b.lateral);
+  const contents = sorted.map((obj) => {
+    const title = `${obj.type} ${obj.depth}:${obj.lateral}`;
+    return `<span class="${obj.className}" title="${escapeHtml(title)}">${escapeHtml(obj.label)}</span>`;
+  }).join("");
+
+  return `<div class="fp-band ${widthClass}">${contents || `<span class="fp-empty">·</span>`}</div>`;
+}
+
+function renderMiniMap() {
+  if (!el.miniMap) return;
+
+  const origin = miniMapOrigin();
   const rows = [];
 
-  for (let vy = 0; vy < VIEW_HEIGHT; vy++) {
+  for (let vy = 0; vy < MINI_HEIGHT; vy++) {
     const row = [];
 
-    for (let vx = 0; vx < VIEW_WIDTH; vx++) {
-      row.push(renderCell(camera.x + vx, camera.y + vy));
+    for (let vx = 0; vx < MINI_WIDTH; vx++) {
+      row.push(renderMapCell(origin.x + vx, origin.y + vy));
     }
 
     rows.push(row.join(""));
   }
 
-  el.grid.innerHTML = rows.join("\n");
-  el.log.innerHTML = game.logs.map((msg) => `<p>${escapeHtml(msg)}</p>`).join("");
-  renderInventory();
+  el.miniMap.innerHTML = rows.join("\n");
 }
 
-function renderCell(x, y) {
+function renderMapCell(x, y) {
   const p = key(x, y);
   const visible = game.visible.has(p);
   const remembered = game.discovered.has(p);
-  const mapReveal = game.mapFound;
 
-  if (game.player.x === x && game.player.y === y) return cell("@", x, y, "player");
+  if (game.player.x === x && game.player.y === y) return playerFacingSymbol();
 
   const foe = enemyAt(x, y);
+  if (foe && visible) return enemySymbol(foe);
 
-  if (foe && visible) {
-    const c = healthCondition(foe.hp, foe.maxHp);
-    const targetClass = game.selectedTargetKey === p ? " target" : "";
-    return cell(enemySymbol(foe), x, y, `enemy ${c}${targetClass}`);
-  }
-
-  if (visible) return renderKnownCell(x, y, "");
-  if (remembered) return renderKnownCell(x, y, " memory");
-
-  if (mapReveal) {
+  if (visible) return knownMapChar(x, y);
+  if (remembered) return knownMapChar(x, y);
+  if (game.mapFound) {
     const d = doorAt(x, y);
-    if (d) return renderDoorCell(x, y, d, " memory");
-    if (game.exit.x === x && game.exit.y === y) return cell("E", x, y, `exit ${game.exit.color} memory`);
-    if (game.walls.has(p)) return cell("#", x, y, "wall memory");
-    return ".";
+    if (d) return "D";
+    if (game.exit.x === x && game.exit.y === y) return "E";
+    if (game.walls.has(p)) return "#";
   }
 
   return ".";
 }
 
-function renderKnownCell(x, y, suffix) {
+function knownMapChar(x, y) {
   const p = key(x, y);
 
-  const pickup = pickupAt(x, y);
-  if (!suffix && pickup) return cell("a", x, y, "ammo");
-
-  const chest = chestAt(x, y);
-  if (chest) return renderChestCell(x, y, chest, suffix);
-
-  if (game.exit.x === x && game.exit.y === y) return cell("E", x, y, `exit ${game.exit.color}${suffix}`);
-
-  const d = doorAt(x, y);
-  if (d) return renderDoorCell(x, y, d, suffix);
-
-  if (game.walls.has(p)) return cell("#", x, y, `wall${suffix}`);
-
-  if (game.floors.has(p)) return cell(" ", x, y, `floor${suffix}`);
-
+  if (pickupAt(x, y)) return "a";
+  if (chestAt(x, y)) return "C";
+  if (game.exit.x === x && game.exit.y === y) return "E";
+  if (doorAt(x, y)) return "D";
+  if (game.walls.has(p)) return "#";
+  if (game.floors.has(p)) return " ";
   return ".";
 }
 
-function renderDoorCell(x, y, door, suffix) {
-  const classes = door.locked
-    ? `door ${door.color} locked${suffix}`
-    : `door${suffix}`;
-  return cell("D", x, y, classes);
-}
-
-function renderChestCell(x, y, chest, suffix) {
-  const classes = chest.locked
-    ? `chest ${chest.lockColor} locked${suffix}`
-    : `chest${suffix}`;
-  return cell("C", x, y, classes);
-}
-
-function cell(char, x, y, className) {
-  return `<span class="cell ${className}" data-x="${x}" data-y="${y}">${escapeHtml(char)}</span>`;
+function playerFacingSymbol() {
+  if (game.player.dir === "north") return "^";
+  if (game.player.dir === "east") return ">";
+  if (game.player.dir === "south") return "v";
+  return "<";
 }
 
 function renderInventory() {
@@ -1388,22 +1589,33 @@ function setup() {
 
     if (game.pendingChest || game.won) return;
 
-    if (k === "w" || k === "arrowup") move(0, -1);
-    if (k === "s" || k === "arrowdown") move(0, 1);
-    if (k === "a" || k === "arrowleft") move(-1, 0);
-    if (k === "d" || k === "arrowright") move(1, 0);
+    if (k === "w" || k === "arrowup") moveForward();
+    if (k === "s" || k === "arrowdown") moveBackward();
+    if (k === "a" || k === "arrowleft") turnLeft();
+    if (k === "d" || k === "arrowright") turnRight();
     if (k === "t") cycleTarget();
     if (k === "f") fireSelectedTarget();
     if (k === "r") reload();
   });
 
-  el.dpad.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-dir]");
-    if (!button || game.pendingChest || game.won) return;
+  if (el.dpad) {
+    el.dpad.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-dir]");
+      if (!button || game.pendingChest || game.won) return;
 
-    const [dx, dy] = DIRS[button.dataset.dir];
-    move(dx, dy);
-  });
+      const dir = button.dataset.dir;
+
+      if (dir === "up" || dir === "forward") moveForward();
+      if (dir === "down" || dir === "back") moveBackward();
+      if (dir === "left") turnLeft();
+      if (dir === "right") turnRight();
+    });
+  }
+
+  if (el.forwardBtn) el.forwardBtn.addEventListener("click", moveForward);
+  if (el.backBtn) el.backBtn.addEventListener("click", moveBackward);
+  if (el.leftBtn) el.leftBtn.addEventListener("click", turnLeft);
+  if (el.rightBtn) el.rightBtn.addEventListener("click", turnRight);
 
   el.targetBtn.addEventListener("click", cycleTarget);
   el.aimBtn.addEventListener("click", aimWeapon);
@@ -1423,15 +1635,17 @@ function setup() {
   el.nextLevelBtn.addEventListener("click", startNextLevel);
   el.levelRestartBtn.addEventListener("click", newGame);
 
-  el.grid.addEventListener("pointerdown", (event) => {
-    const target = event.target.closest(".enemy");
-    if (!target || game.pendingChest || game.won) return;
+  if (el.miniMap) {
+    el.miniMap.addEventListener("pointerdown", (event) => {
+      const target = event.target.closest(".enemy");
+      if (!target || game.pendingChest || game.won) return;
 
-    event.preventDefault();
-    game.selectedTargetKey = key(Number(target.dataset.x), Number(target.dataset.y));
-    addLog("Target marked.");
-    render();
-  });
+      event.preventDefault();
+      game.selectedTargetKey = key(Number(target.dataset.x), Number(target.dataset.y));
+      addLog("Target marked.");
+      render();
+    });
+  }
 
   el.inventory.addEventListener("click", (event) => {
     const button = event.target.closest(".use-item");
@@ -1449,7 +1663,7 @@ function bootGame() {
   wireElements();
 
   if (!hasRequiredElements()) {
-    showBootError("Required UI elements are missing.");
+    showBootError("Required UI elements are missing. If you changed the HTML, paste it here and I’ll align the JS to it.");
     return;
   }
 
