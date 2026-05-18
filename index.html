@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ASCII Horde</title>
 
-    <link rel="stylesheet" href="./style.css?v=fp1" />
+    <link rel="stylesheet" href="./style.css?v=fp2" />
 
     <style>
       * { box-sizing: border-box; }
@@ -46,6 +46,8 @@
         letter-spacing: 2px;
       }
 
+      h2 { margin: 0 0 10px; }
+
       .build {
         margin-top: 3px;
         color: #999999;
@@ -69,116 +71,147 @@
       .aiming { color: #99ddff; }
       .moving { color: #dddddd; }
 
-      .game-view-wrap {
+      .view-wrap {
         position: relative;
+        display: inline-block;
         width: min(620px, 100%);
-        margin: 0 auto;
       }
 
-      .fp-view {
-        position: relative;
-        height: 215px;
+      .first-person-view {
         width: 100%;
+        min-height: 190px;
+        margin: 0 auto;
+        padding: 8px;
         background: #000000;
+        color: #66ff66;
         border: 2px solid #66ff66;
         border-radius: 6px;
         overflow: hidden;
+        user-select: none;
         touch-action: manipulation;
       }
 
-      .fp-depth {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        border: 1px solid #66ff66;
-        color: #66ff66;
-        display: grid;
-        place-items: center;
-        text-align: center;
-        font-weight: 700;
-        pointer-events: none;
+      .fp-panel {
+        width: 100%;
       }
 
-      .depth-5 { width: 18%; height: 16%; opacity: 0.35; }
-      .depth-4 { width: 32%; height: 28%; opacity: 0.48; }
-      .depth-3 { width: 48%; height: 42%; opacity: 0.62; }
-      .depth-2 { width: 66%; height: 58%; opacity: 0.78; }
-      .depth-1 { width: 86%; height: 76%; opacity: 1; }
+      .fp-topline,
+      .fp-status {
+        color: #dddddd;
+        font-size: 13px;
+        line-height: 1.2;
+        min-height: 18px;
+      }
+
+      .fp-scene {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 4px;
+        min-height: 145px;
+        padding: 6px 0;
+      }
+
+      .fp-band {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        min-height: 20px;
+        border-top: 1px solid rgba(102, 255, 102, 0.12);
+      }
+
+      .fp-band.depth-5 {
+        font-size: 12px;
+        opacity: 0.45;
+      }
+
+      .fp-band.depth-4 {
+        font-size: 14px;
+        opacity: 0.55;
+      }
+
+      .fp-band.depth-3 {
+        font-size: 17px;
+        opacity: 0.7;
+      }
+
+      .fp-band.depth-2 {
+        font-size: 22px;
+        opacity: 0.88;
+      }
+
+      .fp-band.depth-1 {
+        font-size: 32px;
+        opacity: 1;
+        min-height: 42px;
+      }
+
+      .fp-empty {
+        color: #225522;
+      }
 
       .fp-wall {
-        background: rgba(102, 255, 102, 0.12);
-        border-color: #aaaaaa;
         color: #aaaaaa;
       }
 
-      .fp-open {
-        background: transparent;
-      }
-
-      .fp-object {
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
-        font-weight: 700;
-        text-shadow: 0 0 8px #000000;
-        pointer-events: none;
-      }
-
-      .obj-1 { bottom: 34px; font-size: 42px; }
-      .obj-2 { bottom: 62px; font-size: 32px; }
-      .obj-3 { bottom: 88px; font-size: 24px; }
-      .obj-4 { bottom: 108px; font-size: 18px; }
-      .obj-5 { bottom: 124px; font-size: 14px; }
-
-      .fp-label {
-        position: absolute;
-        left: 8px;
-        right: 8px;
-        bottom: 8px;
-        min-height: 20px;
-        color: #dddddd;
-        font-size: 13px;
-        text-align: center;
-      }
-
-      .fp-side {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        color: #888888;
-        font-size: 22px;
+      .fp-door {
+        color: #aaaaaa;
         font-weight: 700;
       }
 
-      .fp-side.left { left: 12px; }
-      .fp-side.right { right: 12px; }
+      .fp-chest {
+        color: #aaaaaa;
+        font-weight: 700;
+      }
+
+      .fp-exit {
+        font-weight: 700;
+        text-decoration: underline;
+      }
+
+      .fp-enemy {
+        color: #ff9999;
+        font-weight: 700;
+      }
+
+      .fp-enemy.injured {
+        color: #ffcc66;
+      }
+
+      .fp-enemy.critical {
+        color: #ff5555;
+        text-decoration: underline;
+      }
+
+      .fp-enemy.target {
+        background: #eeeeee;
+        color: #000000;
+        text-decoration: none;
+      }
+
+      .fp-ammo {
+        color: #99ddff;
+        font-weight: 700;
+      }
 
       .red { color: #ff6666; }
       .blue { color: #66aaff; }
       .yellow { color: #ffee66; }
       .green { color: #77ff77; }
-      .gray { color: #aaaaaa; }
-      .white { color: #ffffff; }
-      .cyan { color: #66ccff; }
 
-      .targeted {
-        background: #eeeeee;
-        color: #000000;
-        padding: 0 6px;
-      }
-
-      .minimap {
+      .mini-map {
         display: block;
-        width: min(620px, 100%);
+        width: min-content;
+        max-width: 100%;
         margin: 6px auto 0;
         padding: 6px;
-        background: #000000;
+        background: #030303;
         color: #66ff66;
-        border: 1px solid #444444;
-        border-radius: 6px;
+        border: 1px solid #335533;
+        border-radius: 4px;
         text-align: left;
-        font-size: 10px;
+        font-size: 11px;
         line-height: 1;
         white-space: pre;
         overflow: hidden;
@@ -187,8 +220,8 @@
 
       .message-log {
         width: min(620px, 100%);
-        min-height: 72px;
-        max-height: 80px;
+        min-height: 76px;
+        max-height: 84px;
         margin: 7px auto 0;
         padding: 7px 10px;
         background: #050505;
@@ -238,13 +271,13 @@
         grid-template-rows: 40px 40px 40px;
         gap: 5px;
         grid-template-areas:
-          ". forward ."
-          "left back right"
-          ". . .";
+          ". up ."
+          "left . right"
+          ". down .";
       }
 
-      .forward { grid-area: forward; }
-      .back { grid-area: back; }
+      .up { grid-area: up; }
+      .down { grid-area: down; }
       .left { grid-area: left; }
       .right { grid-area: right; }
 
@@ -284,7 +317,7 @@
         inset: 0;
         display: grid;
         place-items: center;
-        background: rgba(0, 0, 0, 0.72);
+        background: rgba(0, 0, 0, 0.68);
         z-index: 10;
       }
 
@@ -335,20 +368,41 @@
           font-size: 12px;
         }
 
-        .fp-view {
-          height: 190px;
+        .first-person-view {
+          min-height: 160px;
+          padding: 5px;
         }
 
-        .obj-1 { bottom: 30px; font-size: 38px; }
-        .obj-2 { bottom: 56px; font-size: 29px; }
-        .obj-3 { bottom: 80px; font-size: 22px; }
-        .obj-4 { bottom: 98px; font-size: 17px; }
-        .obj-5 { bottom: 112px; font-size: 13px; }
+        .fp-scene {
+          min-height: 118px;
+          gap: 2px;
+          padding: 4px 0;
+        }
 
-        .minimap {
+        .fp-topline,
+        .fp-status {
+          font-size: 11px;
+          min-height: 15px;
+        }
+
+        .fp-band {
+          min-height: 16px;
+          gap: 7px;
+        }
+
+        .fp-band.depth-5 { font-size: 10px; }
+        .fp-band.depth-4 { font-size: 11px; }
+        .fp-band.depth-3 { font-size: 14px; }
+        .fp-band.depth-2 { font-size: 18px; }
+        .fp-band.depth-1 {
+          font-size: 26px;
+          min-height: 32px;
+        }
+
+        .mini-map {
           font-size: 9px;
-          padding: 5px;
-          margin-top: 5px;
+          padding: 4px;
+          margin-top: 4px;
         }
 
         .message-log {
@@ -408,15 +462,15 @@
         <span>Floor: <strong id="level">1</strong></span>
         <span>Condition: <strong id="condition" class="condition healthy">Healthy</strong></span>
         <span>Mode: <strong id="mode" class="moving">Move</strong></span>
-        <span>Facing: <strong id="facing">N</strong></span>
         <span>Ammo: <strong id="shots">6/12</strong></span>
         <span>Turn: <strong id="turn">0</strong></span>
         <span>Kills: <strong id="kills">0</strong></span>
         <span>Enemies: <strong id="enemy-count">0</strong></span>
       </section>
 
-      <section class="game-view-wrap" aria-label="First-person dungeon view">
-        <div id="fp-view" class="fp-view"></div>
+      <section class="view-wrap" aria-label="First-person dungeon view">
+        <div id="first-person-view" class="first-person-view"></div>
+        <pre id="mini-map" class="mini-map" aria-label="Memory map"></pre>
 
         <div id="chest-overlay" class="overlay hidden" aria-live="assertive">
           <div class="modal">
@@ -440,18 +494,16 @@
         </div>
       </section>
 
-      <pre id="minimap" class="minimap" aria-label="Memory map"></pre>
-
       <section id="message-log" class="message-log" aria-live="polite"></section>
 
       <section id="inventory" class="inventory" aria-live="polite"></section>
 
       <section class="controls" aria-label="Controls">
-        <div class="dpad" role="group" aria-label="Movement controls">
-          <button data-move="forward" class="btn forward" type="button">Fwd</button>
-          <button data-move="left" class="btn left" type="button">Left</button>
-          <button data-move="right" class="btn right" type="button">Right</button>
-          <button data-move="back" class="btn back" type="button">Back</button>
+        <div class="dpad" role="group" aria-label="Directional pad">
+          <button data-dir="up" class="btn dir up" type="button">Forward</button>
+          <button data-dir="left" class="btn dir left" type="button">Turn L</button>
+          <button data-dir="right" class="btn dir right" type="button">Turn R</button>
+          <button data-dir="down" class="btn dir down" type="button">Back</button>
         </div>
 
         <div class="actions">
@@ -466,11 +518,14 @@
 
       <section class="legend">
         <p>
-          First-person test · Fwd/Back move · Left/Right turn · Target → Aim → Fire
+          Forward/Back move by facing · Left/Right turn ·
+          <strong>H/h</strong> enemy · <strong>#</strong> wall ·
+          <strong>D</strong> door · <strong>C</strong> chest ·
+          <strong>E</strong> exit
         </p>
       </section>
     </main>
 
-    <script src="./main.js?v=fp1"></script>
+    <script src="./main.js?v=fp2"></script>
   </body>
 </html>
