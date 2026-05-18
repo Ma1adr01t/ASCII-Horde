@@ -4,7 +4,7 @@ const MINI_WIDTH = 21;
 const MINI_HEIGHT = 11;
 const MAX_LOG_LINES = 4;
 const VIS_RADIUS = 8;
-const FIRST_PERSON_DEPTH = 5;
+const FIRST_PERSON_DEPTH = 4;
 
 const BASE_MAX_HP = 10;
 const BASE_CLIP_SIZE = 6;
@@ -741,6 +741,21 @@ function addKey(color) {
   }
 }
 
+function relativeTile(depth, lateral) {
+  const f = facingVector();
+  const l = leftVector();
+  return {
+    x: game.player.x + f.x * depth + l.x * lateral,
+    y: game.player.y + f.y * depth + l.y * lateral
+  };
+}
+
+function canSeeRelative(depth, lateral) {
+  const t = relativeTile(depth, lateral);
+  if (!inBounds(t.x, t.y)) return false;
+  return hasLine(game.player.x, game.player.y, t.x, t.y, true);
+}
+
 function isInForwardView(entity) {
   const f = facingVector();
   const l = leftVector();
@@ -750,7 +765,7 @@ function isInForwardView(entity) {
   const lateral = dx * l.x + dy * l.y;
 
   if (depth < 1 || depth > FIRST_PERSON_DEPTH) return false;
-  if (Math.abs(lateral) > depth) return false;
+  if (Math.abs(lateral) > Math.min(depth, 1)) return false;
   return hasLine(game.player.x, game.player.y, entity.x, entity.y, true);
 }
 
@@ -1325,7 +1340,6 @@ function render() {
 }
 
 function renderFirstPersonView() {
-  const visibleObjects = objectsInForwardView();
   const f = facingVector();
   const frontX = game.player.x + f.x;
   const frontY = game.player.y + f.y;
@@ -1341,13 +1355,6 @@ function renderFirstPersonView() {
   if (frontChest) status = frontChest.locked ? `${titleColor(frontChest.lockColor)} locked chest ahead.` : "Chest ahead.";
   if (frontExit) status = "Exit ahead.";
 
-  const lanes = [];
-
-  for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
-    const rowObjects = visibleObjects.filter((obj) => obj.depth === depth);
-    lanes.push(renderDepthBand(depth, rowObjects));
-  }
-
   const compass = `Facing ${game.player.dir.toUpperCase()}`;
   const target = game.selectedTargetKey ? getEnemyByKey(game.selectedTargetKey) : null;
   const targetText = target ? `Target: ${enemySymbol(target)}` : "Target: none";
@@ -1355,39 +1362,63 @@ function renderFirstPersonView() {
   el.firstPersonView.innerHTML = `
     <div class="fp-panel">
       <div class="fp-topline">${escapeHtml(compass)} · ${escapeHtml(targetText)}</div>
-      <div class="fp-scene">${lanes.join("")}</div>
+      <div class="fp-stage">
+        <div class="fp-line top-left"></div>
+        <div class="fp-line top-right"></div>
+        <div class="fp-line bottom-left"></div>
+        <div class="fp-line bottom-right"></div>
+        ${renderPerspectiveScene()}
+      </div>
       <div class="fp-status">${escapeHtml(status)}</div>
     </div>
   `;
 }
 
-function objectsInForwardView() {
-  const objects = [];
-  const f = facingVector();
-  const l = leftVector();
+function renderPerspectiveScene() {
+  const parts = [];
 
-  for (let depth = 1; depth <= FIRST_PERSON_DEPTH; depth++) {
-    for (let lateral = -depth; lateral <= depth; lateral++) {
-      const x = game.player.x + f.x * depth + l.x * lateral;
-      const y = game.player.y + f.y * depth + l.y * lateral;
+  for (let depth = 4; depth >= 1; depth--) {
+    parts.push(`<div class="fp-frame d${depth}"></div>`);
+  }
 
-      if (!inBounds(x, y)) continue;
+  for (let depth = 1; depth <= 4; depth++) {
+    const center = relativeTile(depth, 0);
+    const left = relativeTile(depth, -1);
+    const right = relativeTile(depth, 1);
 
-      const obj = describeTile(x, y);
-      if (!obj) continue;
+    if (!isOpenTile(left.x, left.y) && canSeeSide(depth, -1)) {
+      parts.push(`<div class="fp-wall-panel fp-left d${depth}"></div>`);
+    }
 
-      const p = key(x, y);
-      const isWall = game.walls.has(p);
-      if (!isWall && !hasLine(game.player.x, game.player.y, x, y, true)) continue;
+    if (!isOpenTile(right.x, right.y) && canSeeSide(depth, 1)) {
+      parts.push(`<div class="fp-wall-panel fp-right d${depth}"></div>`);
+    }
 
-      objects.push({ ...obj, x, y, depth, lateral });
+    const centerThing = describePerspectiveTile(center.x, center.y);
+
+    if (centerThing && centerThing.blocks) {
+      parts.push(`<div class="fp-center-wall d${depth} ${centerThing.className}">${escapeHtml(centerThing.label)}</div>`);
+      break;
+    }
+
+    for (const lateral of [-1, 0, 1]) {
+      const t = relativeTile(depth, lateral);
+      if (!canSeeRelative(depth, lateral)) continue;
+
+      const thing = describePerspectiveTile(t.x, t.y);
+      if (!thing || thing.blocks) continue;
+
+      const sideClass = lateral < 0 ? "left" : lateral > 0 ? "right" : "center";
+      parts.push(`<div class="fp-object ${sideClass} d${depth} ${thing.className}">${escapeHtml(thing.label)}</div>`);
     }
   }
 
-  return objects;
+  return parts.join("");
 }
 
-function describeTile(x, y) {
+function describePerspectiveTile(x, y) {
+  if (!inBounds(x, y)) return { label: "#", className: "fp-wall", blocks: true };
+
   const p = key(x, y);
 
   const foe = enemyAt(x, y);
@@ -1395,36 +1426,52 @@ function describeTile(x, y) {
     const targetClass = game.selectedTargetKey === p ? " target" : "";
     return {
       label: enemySymbol(foe),
-      className: `fp-enemy ${healthCondition(foe.hp, foe.maxHp)}${targetClass}`
+      className: `fp-enemy ${healthCondition(foe.hp, foe.maxHp)}${targetClass}`,
+      blocks: false
     };
   }
 
   const chest = chestAt(x, y);
   if (chest) {
-    return { label: "C", className: chest.locked ? `fp-chest ${chest.lockColor}` : "fp-chest" };
+    return {
+      label: "C",
+      className: chest.locked ? `fp-chest ${chest.lockColor}` : "fp-chest",
+      blocks: false
+    };
   }
 
   const d = doorAt(x, y);
   if (d) {
-    return { label: "D", className: d.locked ? `fp-door ${d.color}` : "fp-door" };
+    return {
+      label: "D",
+      className: d.locked ? `fp-door ${d.color}` : "fp-door",
+      blocks: false
+    };
   }
 
   if (game.exit.x === x && game.exit.y === y) {
-    return { label: "E", className: `fp-exit ${game.exit.color}` };
+    return { label: "E", className: `fp-exit ${game.exit.color}`, blocks: false };
   }
 
   const pickup = pickupAt(x, y);
-  if (pickup) return { label: "a", className: "fp-ammo" };
+  if (pickup) return { label: "a", className: "fp-ammo", blocks: false };
 
-  if (game.walls.has(p)) return { label: "#", className: "fp-wall" };
+  if (game.walls.has(p)) return { label: "#", className: "fp-wall", blocks: true };
 
   return null;
 }
 
-function renderDepthBand(depth, objects) {
-  const sorted = objects.sort((a, b) => a.lateral - b.lateral);
-  const contents = sorted.map((obj) => `<span class="${obj.className}">${escapeHtml(obj.label)}</span>`).join("");
-  return `<div class="fp-band depth-${depth}">${contents || `<span class="fp-empty">·</span>`}</div>`;
+function isOpenTile(x, y) {
+  if (!inBounds(x, y)) return false;
+  return !game.walls.has(key(x, y));
+}
+
+function canSeeSide(depth, lateral) {
+  const t = relativeTile(depth, lateral);
+  if (!inBounds(t.x, t.y)) return true;
+  if (depth === 1) return true;
+  const center = relativeTile(depth - 1, 0);
+  return hasLine(game.player.x, game.player.y, center.x, center.y, true);
 }
 
 function renderMiniMap() {
