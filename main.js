@@ -36,81 +36,39 @@ const inBounds = (x, y) => x >= 0 && y >= 0 && x < MAP_WIDTH && y < MAP_HEIGHT;
 const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 const titleColor = (color) => color.charAt(0).toUpperCase() + color.slice(1);
 
-function byId(...ids) {
-  for (const id of ids) {
-    const found = document.getElementById(id);
-    if (found) return found;
-  }
-  return null;
-}
-
 function wireElements() {
   Object.assign(el, {
-    level: byId("level"),
-    condition: byId("condition"),
-    mode: byId("mode"),
-    shots: byId("shots"),
-    turn: byId("turn"),
-    kills: byId("kills"),
-    enemyCount: byId("enemy-count"),
-    log: byId("message-log"),
-    inventory: byId("inventory"),
-
-    firstPersonView: byId("first-person-view", "fp-view", "view", "grid"),
-    miniMap: byId("mini-map", "minimap", "map"),
-
-    chestOverlay: byId("chest-overlay"),
-    chestText: byId("chest-text"),
-    takeBtn: byId("take-btn"),
-    leaveBtn: byId("leave-btn"),
-
-    levelOverlay: byId("level-overlay"),
-    levelText: byId("level-text"),
-    nextLevelBtn: byId("next-level-btn"),
-    levelRestartBtn: byId("level-restart-btn"),
-
+    level: document.getElementById("level"),
+    condition: document.getElementById("condition"),
+    mode: document.getElementById("mode"),
+    shots: document.getElementById("shots"),
+    turn: document.getElementById("turn"),
+    kills: document.getElementById("kills"),
+    enemyCount: document.getElementById("enemy-count"),
+    log: document.getElementById("message-log"),
+    inventory: document.getElementById("inventory"),
+    firstPersonView: document.getElementById("first-person-view"),
+    miniMap: document.getElementById("mini-map"),
+    chestOverlay: document.getElementById("chest-overlay"),
+    chestText: document.getElementById("chest-text"),
+    takeBtn: document.getElementById("take-btn"),
+    leaveBtn: document.getElementById("leave-btn"),
+    levelOverlay: document.getElementById("level-overlay"),
+    levelText: document.getElementById("level-text"),
+    nextLevelBtn: document.getElementById("next-level-btn"),
+    levelRestartBtn: document.getElementById("level-restart-btn"),
     dpad: document.querySelector(".dpad"),
-    forwardBtn: byId("forward-btn"),
-    backBtn: byId("back-btn"),
-    leftBtn: byId("turn-left-btn", "left-btn"),
-    rightBtn: byId("turn-right-btn", "right-btn"),
-
-    targetBtn: byId("target-btn"),
-    aimBtn: byId("aim-btn"),
-    fireBtn: byId("fire-btn"),
-    waitBtn: byId("wait-btn"),
-    reloadBtn: byId("reload-btn"),
-    restartBtn: byId("restart-btn")
+    targetBtn: document.getElementById("target-btn"),
+    aimBtn: document.getElementById("aim-btn"),
+    fireBtn: document.getElementById("fire-btn"),
+    waitBtn: document.getElementById("wait-btn"),
+    reloadBtn: document.getElementById("reload-btn"),
+    restartBtn: document.getElementById("restart-btn")
   });
 }
 
 function hasRequiredElements() {
-  return Boolean(
-    el.level &&
-    el.condition &&
-    el.mode &&
-    el.shots &&
-    el.turn &&
-    el.kills &&
-    el.enemyCount &&
-    el.log &&
-    el.inventory &&
-    el.firstPersonView &&
-    el.chestOverlay &&
-    el.chestText &&
-    el.takeBtn &&
-    el.leaveBtn &&
-    el.levelOverlay &&
-    el.levelText &&
-    el.nextLevelBtn &&
-    el.levelRestartBtn &&
-    el.targetBtn &&
-    el.aimBtn &&
-    el.fireBtn &&
-    el.waitBtn &&
-    el.reloadBtn &&
-    el.restartBtn
-  );
+  return Object.values(el).every(Boolean);
 }
 
 function showBootError(message) {
@@ -158,7 +116,6 @@ function startLevel(carry) {
   game = {
     level: carry.level,
     totalKills: carry.totalKills || 0,
-
     walls: map.walls,
     floors: map.floors,
     rooms: map.rooms,
@@ -166,17 +123,14 @@ function startLevel(carry) {
     chests: map.chests,
     pickups: [],
     exit: map.exit,
-
     visible: new Set(),
     discovered: new Set(),
     enemies: [],
-    inventory: structuredCloneInventory(carry.inventory || []),
+    inventory: carry.inventory.map((item) => ({ ...item })),
     keys: [...new Set(carry.keys || [])],
-
     pendingChest: null,
     selectedTargetKey: null,
     aiming: false,
-
     player: {
       x: map.start.x,
       y: map.start.y,
@@ -184,12 +138,10 @@ function startLevel(carry) {
       hp: carry.hp,
       maxHp: carry.maxHp
     },
-
     shots: carry.shots,
     maxShots: carry.maxShots,
     reserveAmmo: carry.reserveAmmo,
     shotDamage: carry.shotDamage,
-
     mapFound: false,
     turn: 0,
     kills: 0,
@@ -207,24 +159,17 @@ function startLevel(carry) {
   render();
 }
 
-function structuredCloneInventory(items) {
-  return items.map((item) => ({ ...item }));
-}
-
 function generateDungeon() {
   for (let attempt = 0; attempt < 60; attempt++) {
     const walls = new Set();
     const floors = new Set();
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
-      for (let x = 0; x < MAP_WIDTH; x++) {
-        walls.add(key(x, y));
-      }
+      for (let x = 0; x < MAP_WIDTH; x++) walls.add(key(x, y));
     }
 
     const rooms = [];
     const connections = [];
-
     const firstRoom = {
       x: randInt(28, 36),
       y: randInt(15, 22),
@@ -252,7 +197,6 @@ function generateDungeon() {
     const start = { x: startRoom.cx, y: startRoom.cy };
     const exitRoom = farthestRoom(rooms, start);
     const exit = carveEdgeExit(exitRoom, walls, floors);
-
     const doors = placeDoorsFromConnections(connections, start, exit);
     const chests = placeChests(rooms, doors, start, exit);
 
@@ -311,18 +255,18 @@ function tryAttachRoom(rooms, connections, walls, floors) {
 
 function sharedOpening(parent, room, dir) {
   if (dir === "right" || dir === "left") {
-    const overlapTop = Math.max(parent.y, room.y);
-    const overlapBottom = Math.min(parent.y + parent.h - 1, room.y + room.h - 1);
-    if (overlapBottom < overlapTop) return null;
-    const y = randInt(overlapTop, overlapBottom);
+    const top = Math.max(parent.y, room.y);
+    const bottom = Math.min(parent.y + parent.h - 1, room.y + room.h - 1);
+    if (bottom < top) return null;
+    const y = randInt(top, bottom);
     const x = dir === "right" ? parent.x + parent.w : parent.x - 1;
     return { x, y, color: randomColor(), locked: false };
   }
 
-  const overlapLeft = Math.max(parent.x, room.x);
-  const overlapRight = Math.min(parent.x + parent.w - 1, room.x + room.w - 1);
-  if (overlapRight < overlapLeft) return null;
-  const x = randInt(overlapLeft, overlapRight);
+  const left = Math.max(parent.x, room.x);
+  const right = Math.min(parent.x + parent.w - 1, room.x + room.w - 1);
+  if (right < left) return null;
+  const x = randInt(left, right);
   const y = dir === "down" ? parent.y + parent.h : parent.y - 1;
   return { x, y, color: randomColor(), locked: false };
 }
@@ -336,9 +280,7 @@ function rectanglesOverlap(a, b) {
 
 function carveRoom(room, walls, floors) {
   for (let y = room.y; y < room.y + room.h; y++) {
-    for (let x = room.x; x < room.x + room.w; x++) {
-      carveFloor(x, y, walls, floors);
-    }
+    for (let x = room.x; x < room.x + room.w; x++) carveFloor(x, y, walls, floors);
   }
 }
 
@@ -352,11 +294,9 @@ function addExtraRoomOpenings(rooms, connections, walls, floors) {
   for (let i = 0; i < rooms.length; i++) {
     for (let j = i + 1; j < rooms.length; j++) {
       if (Math.random() > 0.16) continue;
-
       const opening = adjacentOpening(rooms[i], rooms[j]);
       if (!opening) continue;
       if (connections.some((c) => c.x === opening.x && c.y === opening.y)) continue;
-
       carveFloor(opening.x, opening.y, walls, floors);
       connections.push({ ...opening, parentIndex: i, childIndex: j, color: randomColor(), locked: false });
     }
@@ -471,7 +411,6 @@ function placeChests(rooms, doors, start, exit) {
   const exitRoomIndex = roomIndexForPoint(rooms, exit);
   const startRoomIndex = roomIndexForPoint(rooms, start);
   const exitKeyRoom = chooseKeyRoomAwayFrom(rooms, exitRoomIndex, new Set([exitRoomIndex]));
-
   placeChestInRoom(exitKeyRoom, [`${titleColor(exit.color)} Key`], false, null);
   usedImportantRooms.add(exitKeyRoom);
 
@@ -618,10 +557,6 @@ function randomColor() {
   return COLORS[randInt(0, COLORS.length - 1)];
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
 function fallbackDungeon() {
   const walls = new Set();
   const floors = new Set();
@@ -659,6 +594,10 @@ function fallbackDungeon() {
   };
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -672,18 +611,13 @@ function facingVector() {
 }
 
 function leftVector() {
-  const order = {
+  const table = {
     north: { x: -1, y: 0 },
     east: { x: 0, y: -1 },
     south: { x: 1, y: 0 },
     west: { x: 0, y: 1 }
   };
-  return order[game.player.dir];
-}
-
-function rightVector() {
-  const left = leftVector();
-  return { x: -left.x, y: -left.y };
+  return table[game.player.dir];
 }
 
 function rotateFacing(delta) {
@@ -961,15 +895,15 @@ function turnRight() {
 
 function moveForward() {
   const f = facingVector();
-  moveBy(f.x, f.y, "forward");
+  moveBy(f.x, f.y);
 }
 
 function moveBackward() {
   const f = facingVector();
-  moveBy(-f.x, -f.y, "back");
+  moveBy(-f.x, -f.y);
 }
 
-function moveBy(dx, dy, label = "move") {
+function moveBy(dx, dy) {
   resolveAction(() => {
     const nx = game.player.x + dx;
     const ny = game.player.y + dy;
@@ -1286,9 +1220,7 @@ function takeChest() {
 
   const chest = game.pendingChest;
 
-  for (const item of chest.items) {
-    takeItem(item);
-  }
+  for (const item of chest.items) takeItem(item);
 
   game.chests = game.chests.filter((c) => c !== chest);
   game.pendingChest = null;
@@ -1367,7 +1299,7 @@ function checkEnd() {
     game.player.hp = 0;
     game.over = true;
     game.aiming = false;
-    addLog("You fall. Press Restart or Space.");
+    addLog("You fall. Press Restart.");
   }
 }
 
@@ -1394,9 +1326,9 @@ function render() {
 
 function renderFirstPersonView() {
   const visibleObjects = objectsInForwardView();
-  const forward = facingVector();
-  const frontX = game.player.x + forward.x;
-  const frontY = game.player.y + forward.y;
+  const f = facingVector();
+  const frontX = game.player.x + f.x;
+  const frontY = game.player.y + f.y;
 
   const frontWall = !inBounds(frontX, frontY) || game.walls.has(key(frontX, frontY));
   const frontDoor = doorAt(frontX, frontY);
@@ -1440,10 +1372,15 @@ function objectsInForwardView() {
       const y = game.player.y + f.y * depth + l.y * lateral;
 
       if (!inBounds(x, y)) continue;
-      if (!hasLine(game.player.x, game.player.y, x, y, true) && !game.walls.has(key(x, y))) continue;
 
       const obj = describeTile(x, y);
-      if (obj) objects.push({ ...obj, x, y, depth, lateral });
+      if (!obj) continue;
+
+      const p = key(x, y);
+      const isWall = game.walls.has(p);
+      if (!isWall && !hasLine(game.player.x, game.player.y, x, y, true)) continue;
+
+      objects.push({ ...obj, x, y, depth, lateral });
     }
   }
 
@@ -1452,51 +1389,45 @@ function objectsInForwardView() {
 
 function describeTile(x, y) {
   const p = key(x, y);
+
   const foe = enemyAt(x, y);
   if (foe && game.visible.has(p)) {
-    return { type: "enemy", label: enemySymbol(foe), className: `fp-enemy ${healthCondition(foe.hp, foe.maxHp)}${game.selectedTargetKey === p ? " target" : ""}` };
+    const targetClass = game.selectedTargetKey === p ? " target" : "";
+    return {
+      label: enemySymbol(foe),
+      className: `fp-enemy ${healthCondition(foe.hp, foe.maxHp)}${targetClass}`
+    };
   }
 
   const chest = chestAt(x, y);
   if (chest) {
-    return { type: "chest", label: "C", className: chest.locked ? `fp-chest ${chest.lockColor}` : "fp-chest" };
+    return { label: "C", className: chest.locked ? `fp-chest ${chest.lockColor}` : "fp-chest" };
   }
 
   const d = doorAt(x, y);
   if (d) {
-    return { type: "door", label: "D", className: d.locked ? `fp-door ${d.color}` : "fp-door" };
+    return { label: "D", className: d.locked ? `fp-door ${d.color}` : "fp-door" };
   }
 
   if (game.exit.x === x && game.exit.y === y) {
-    return { type: "exit", label: "E", className: `fp-exit ${game.exit.color}` };
+    return { label: "E", className: `fp-exit ${game.exit.color}` };
   }
 
   const pickup = pickupAt(x, y);
-  if (pickup) {
-    return { type: "ammo", label: "a", className: "fp-ammo" };
-  }
+  if (pickup) return { label: "a", className: "fp-ammo" };
 
-  if (game.walls.has(p)) {
-    return { type: "wall", label: "#", className: "fp-wall" };
-  }
+  if (game.walls.has(p)) return { label: "#", className: "fp-wall" };
 
   return null;
 }
 
 function renderDepthBand(depth, objects) {
-  const widthClass = `depth-${depth}`;
   const sorted = objects.sort((a, b) => a.lateral - b.lateral);
-  const contents = sorted.map((obj) => {
-    const title = `${obj.type} ${obj.depth}:${obj.lateral}`;
-    return `<span class="${obj.className}" title="${escapeHtml(title)}">${escapeHtml(obj.label)}</span>`;
-  }).join("");
-
-  return `<div class="fp-band ${widthClass}">${contents || `<span class="fp-empty">·</span>`}</div>`;
+  const contents = sorted.map((obj) => `<span class="${obj.className}">${escapeHtml(obj.label)}</span>`).join("");
+  return `<div class="fp-band depth-${depth}">${contents || `<span class="fp-empty">·</span>`}</div>`;
 }
 
 function renderMiniMap() {
-  if (!el.miniMap) return;
-
   const origin = miniMapOrigin();
   const rows = [];
 
@@ -1510,7 +1441,7 @@ function renderMiniMap() {
     rows.push(row.join(""));
   }
 
-  el.miniMap.innerHTML = rows.join("\n");
+  el.miniMap.textContent = rows.join("\n");
 }
 
 function renderMapCell(x, y) {
@@ -1523,11 +1454,10 @@ function renderMapCell(x, y) {
   const foe = enemyAt(x, y);
   if (foe && visible) return enemySymbol(foe);
 
-  if (visible) return knownMapChar(x, y);
-  if (remembered) return knownMapChar(x, y);
+  if (visible || remembered) return knownMapChar(x, y);
+
   if (game.mapFound) {
-    const d = doorAt(x, y);
-    if (d) return "D";
+    if (doorAt(x, y)) return "D";
     if (game.exit.x === x && game.exit.y === y) return "E";
     if (game.walls.has(p)) return "#";
   }
@@ -1537,7 +1467,6 @@ function renderMapCell(x, y) {
 
 function knownMapChar(x, y) {
   const p = key(x, y);
-
   if (pickupAt(x, y)) return "a";
   if (chestAt(x, y)) return "C";
   if (game.exit.x === x && game.exit.y === y) return "E";
@@ -1582,11 +1511,6 @@ function setup() {
       event.preventDefault();
     }
 
-    if (k === " " && game.over && !game.won) {
-      newGame();
-      return;
-    }
-
     if (game.pendingChest || game.won) return;
 
     if (k === "w" || k === "arrowup") moveForward();
@@ -1598,59 +1522,31 @@ function setup() {
     if (k === "r") reload();
   });
 
-  if (el.dpad) {
-    el.dpad.addEventListener("click", (event) => {
-      const button = event.target.closest("button[data-dir]");
-      if (!button || game.pendingChest || game.won) return;
+  el.dpad.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-dir]");
+    if (!button || game.pendingChest || game.won) return;
 
-      const dir = button.dataset.dir;
-
-      if (dir === "up" || dir === "forward") moveForward();
-      if (dir === "down" || dir === "back") moveBackward();
-      if (dir === "left") turnLeft();
-      if (dir === "right") turnRight();
-    });
-  }
-
-  if (el.forwardBtn) el.forwardBtn.addEventListener("click", moveForward);
-  if (el.backBtn) el.backBtn.addEventListener("click", moveBackward);
-  if (el.leftBtn) el.leftBtn.addEventListener("click", turnLeft);
-  if (el.rightBtn) el.rightBtn.addEventListener("click", turnRight);
+    const dir = button.dataset.dir;
+    if (dir === "up") moveForward();
+    if (dir === "down") moveBackward();
+    if (dir === "left") turnLeft();
+    if (dir === "right") turnRight();
+  });
 
   el.targetBtn.addEventListener("click", cycleTarget);
   el.aimBtn.addEventListener("click", aimWeapon);
   el.fireBtn.addEventListener("click", fireSelectedTarget);
-
-  el.waitBtn.addEventListener("click", () => {
-    if (!game.pendingChest && !game.won) waitTurn();
-  });
-
-  el.reloadBtn.addEventListener("click", () => {
-    if (!game.pendingChest && !game.won) reload();
-  });
-
+  el.waitBtn.addEventListener("click", () => { if (!game.pendingChest && !game.won) waitTurn(); });
+  el.reloadBtn.addEventListener("click", () => { if (!game.pendingChest && !game.won) reload(); });
   el.restartBtn.addEventListener("click", newGame);
   el.takeBtn.addEventListener("click", takeChest);
   el.leaveBtn.addEventListener("click", leaveChest);
   el.nextLevelBtn.addEventListener("click", startNextLevel);
   el.levelRestartBtn.addEventListener("click", newGame);
 
-  if (el.miniMap) {
-    el.miniMap.addEventListener("pointerdown", (event) => {
-      const target = event.target.closest(".enemy");
-      if (!target || game.pendingChest || game.won) return;
-
-      event.preventDefault();
-      game.selectedTargetKey = key(Number(target.dataset.x), Number(target.dataset.y));
-      addLog("Target marked.");
-      render();
-    });
-  }
-
   el.inventory.addEventListener("click", (event) => {
     const button = event.target.closest(".use-item");
     if (!button || game.pendingChest || game.won) return;
-
     useItem(Number(button.dataset.idx));
   });
 }
@@ -1663,7 +1559,7 @@ function bootGame() {
   wireElements();
 
   if (!hasRequiredElements()) {
-    showBootError("Required UI elements are missing. If you changed the HTML, paste it here and I’ll align the JS to it.");
+    showBootError("Required UI elements are missing.");
     return;
   }
 
