@@ -2247,3 +2247,15 @@ function objectTextSize(depth) {
 function objectScale(depth) {
   return Math.max(7, 25 - depth * 3.2);
 }
+// === Missing helper for first-person renderer override ===
+
+function leftVector() {
+  const table = {
+    north: { x: -1, y: 0 },
+    east: { x: 0, y: -1 },
+    south: { x: 1, y: 0 },
+    west: { x: 0, y: 1 }
+  };
+
+  return table[game.player.dir] || { x: -1, y: 0 };
+}
