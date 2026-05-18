@@ -1831,3 +1831,419 @@ function bootGame() {
 }
 
 bootGame();
+// === First-person renderer override: clearer walls + grounded objects ===
+
+function renderFirstPersonView() {
+  const f = facingVector();
+  const frontX = game.player.x + f.x;
+  const frontY = game.player.y + f.y;
+
+  const frontWall = !inBounds(frontX, frontY) || game.walls.has(key(frontX, frontY));
+  const frontDoor = doorAt(frontX, frontY);
+  const frontChest = chestAt(frontX, frontY);
+  const frontExit = game.exit.x === frontX && game.exit.y === frontY;
+  const frontEnemy = enemyAt(frontX, frontY);
+
+  let status = "Open space ahead.";
+  if (frontWall) status = "Wall ahead.";
+  if (frontDoor) status = frontDoor.locked ? `${titleColor(frontDoor.color)} locked door ahead.` : "Doorway ahead.";
+  if (frontChest) status = frontChest.locked ? `${titleColor(frontChest.lockColor)} locked chest ahead.` : "Chest ahead.";
+  if (frontExit) status = "Exit ahead.";
+  if (frontEnemy) status = "Enemy ahead.";
+
+  const compass = `Facing ${game.player.dir.toUpperCase()}`;
+  const target = game.selectedTargetKey ? getEnemyByKey(game.selectedTargetKey) : null;
+  const targetText = target ? `Target: ${enemySymbol(target)}` : "Target: none";
+
+  el.firstPersonView.innerHTML = `
+    <div class="fp-panel">
+      <div class="fp-topline">${escapeHtml(compass)} · ${escapeHtml(targetText)}</div>
+      ${renderPerspectiveSvg()}
+      <div class="fp-status">${escapeHtml(status)}</div>
+    </div>
+  `;
+}
+
+function renderPerspectiveSvg() {
+  const frames = perspectiveFrames();
+  const parts = [];
+
+  parts.push(`
+    <svg class="fp-svg" viewBox="0 0 100 56" preserveAspectRatio="none" aria-label="First person dungeon scene">
+      <defs>
+        <radialGradient id="sceneGlow" cx="50%" cy="52%" r="62%">
+          <stop offset="0%" stop-color="#151515" />
+          <stop offset="60%" stop-color="#080808" />
+          <stop offset="100%" stop-color="#020202" />
+        </radialGradient>
+        <linearGradient id="floorFade" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#050505" />
+          <stop offset="100%" stop-color="#171717" />
+        </linearGradient>
+      </defs>
+
+      <rect x="0" y="0" width="100" height="56" fill="url(#sceneGlow)" />
+      <polygon points="6,50 94,50 61,31 39,31" fill="url(#floorFade)" opacity="0.75" />
+      <polygon points="6,6 94,6 61,25 39,25" fill="#050505" opacity="0.65" />
+  `);
+
+  parts.push(drawPerspectiveGuide(frames));
+
+  let blockedAheadAt = null;
+
+  for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
+    const center = relativeTile(depth, 0);
+
+    if (!inBounds(center.x, center.y) || game.walls.has(key(center.x, center.y))) {
+      blockedAheadAt = depth;
+    }
+  }
+
+  for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
+    parts.push(drawSideWallsAtDepth(depth, frames));
+  }
+
+  for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
+    const center = relativeTile(depth, 0);
+    const p = key(center.x, center.y);
+
+    if (!inBounds(center.x, center.y) || game.walls.has(p)) {
+      parts.push(drawFrontWall(depth, frames));
+      break;
+    }
+
+    const door = doorAt(center.x, center.y);
+    if (door) {
+      parts.push(drawDoor(depth, door, frames));
+      break;
+    }
+
+    if (game.exit.x === center.x && game.exit.y === center.y) {
+      parts.push(drawExit(depth, frames));
+      break;
+    }
+  }
+
+  for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
+    if (blockedAheadAt && depth > blockedAheadAt) continue;
+
+    for (let lateral = -depth; lateral <= depth; lateral++) {
+      const pos = relativeTile(depth, lateral);
+      if (!inBounds(pos.x, pos.y)) continue;
+
+      const p = key(pos.x, pos.y);
+      if (!game.visible.has(p)) continue;
+      if (!hasLine(game.player.x, game.player.y, pos.x, pos.y, true)) continue;
+
+      const obj = sceneObjectAt(pos.x, pos.y);
+      if (!obj) continue;
+
+      parts.push(drawGroundedObject(obj, depth, lateral, frames));
+    }
+  }
+
+  parts.push(`</svg>`);
+  return parts.join("");
+}
+
+function perspectiveFrames() {
+  return [
+    { l: 5, t: 5, r: 95, b: 51 },
+    { l: 18, t: 10, r: 82, b: 46 },
+    { l: 30, t: 16, r: 70, b: 40 },
+    { l: 40, t: 22, r: 60, b: 34 },
+    { l: 47, t: 26, r: 53, b: 30 },
+    { l: 50, t: 28, r: 50, b: 28 }
+  ];
+}
+
+function drawPerspectiveGuide(frames) {
+  const outer = frames[0];
+  const far = frames[4];
+
+  return `
+    <line x1="${outer.l}" y1="${outer.t}" x2="${far.l}" y2="${far.t}" stroke="#2a7a2a" stroke-width="0.55" opacity="0.75" />
+    <line x1="${outer.r}" y1="${outer.t}" x2="${far.r}" y2="${far.t}" stroke="#2a7a2a" stroke-width="0.55" opacity="0.75" />
+    <line x1="${outer.l}" y1="${outer.b}" x2="${far.l}" y2="${far.b}" stroke="#2a7a2a" stroke-width="0.55" opacity="0.75" />
+    <line x1="${outer.r}" y1="${outer.b}" x2="${far.r}" y2="${far.b}" stroke="#2a7a2a" stroke-width="0.55" opacity="0.75" />
+
+    <line x1="5" y1="51" x2="95" y2="51" stroke="#2f6d2f" stroke-width="0.5" opacity="0.5" />
+    <line x1="18" y1="46" x2="82" y2="46" stroke="#2f6d2f" stroke-width="0.45" opacity="0.4" />
+    <line x1="30" y1="40" x2="70" y2="40" stroke="#2f6d2f" stroke-width="0.4" opacity="0.32" />
+  `;
+}
+
+function drawSideWallsAtDepth(depth, frames) {
+  const near = frames[depth - 1];
+  const far = frames[depth];
+  const leftTile = relativeTile(depth, -1);
+  const rightTile = relativeTile(depth, 1);
+  const parts = [];
+
+  if (!inBounds(leftTile.x, leftTile.y) || game.walls.has(key(leftTile.x, leftTile.y))) {
+    parts.push(`
+      <polygon
+        points="${near.l},${near.t} ${far.l},${far.t} ${far.l},${far.b} ${near.l},${near.b}"
+        fill="#202020"
+        stroke="#777777"
+        stroke-width="${sideStroke(depth)}"
+        opacity="${sideOpacity(depth)}"
+      />
+    `);
+  }
+
+  if (!inBounds(rightTile.x, rightTile.y) || game.walls.has(key(rightTile.x, rightTile.y))) {
+    parts.push(`
+      <polygon
+        points="${near.r},${near.t} ${far.r},${far.t} ${far.r},${far.b} ${near.r},${near.b}"
+        fill="#202020"
+        stroke="#777777"
+        stroke-width="${sideStroke(depth)}"
+        opacity="${sideOpacity(depth)}"
+      />
+    `);
+  }
+
+  return parts.join("");
+}
+
+function drawFrontWall(depth, frames) {
+  const frame = frames[depth - 1];
+  const inset = depth === 1 ? 3 : 1.2;
+  const l = frame.l + inset;
+  const r = frame.r - inset;
+  const t = frame.t + inset;
+  const b = frame.b - inset;
+  const cx = (l + r) / 2;
+  const cy = (t + b) / 2;
+
+  return `
+    <rect
+      x="${l}"
+      y="${t}"
+      width="${r - l}"
+      height="${b - t}"
+      fill="#252525"
+      stroke="#999999"
+      stroke-width="${frontStroke(depth)}"
+      opacity="${frontOpacity(depth)}"
+    />
+    <text
+      x="${cx}"
+      y="${cy + wallTextSize(depth) / 3}"
+      text-anchor="middle"
+      font-family="Courier New, monospace"
+      font-size="${wallTextSize(depth)}"
+      fill="#aaaaaa"
+      opacity="0.85"
+    >#</text>
+  `;
+}
+
+function drawDoor(depth, door, frames) {
+  const frame = frames[depth - 1];
+  const color = door.locked ? sceneColor(door.color) : "#aaaaaa";
+  const w = (frame.r - frame.l) * 0.34;
+  const h = (frame.b - frame.t) * 0.58;
+  const x = 50 - w / 2;
+  const y = frame.b - h - 2;
+
+  return `
+    <rect
+      x="${x}"
+      y="${y}"
+      width="${w}"
+      height="${h}"
+      fill="#111111"
+      stroke="${color}"
+      stroke-width="${frontStroke(depth)}"
+      opacity="0.95"
+    />
+    <text
+      x="50"
+      y="${y + h * 0.58}"
+      text-anchor="middle"
+      font-family="Courier New, monospace"
+      font-size="${objectTextSize(depth)}"
+      fill="${color}"
+      font-weight="700"
+    >D</text>
+  `;
+}
+
+function drawExit(depth, frames) {
+  const frame = frames[depth - 1];
+  const color = sceneColor(game.exit.color);
+  const w = (frame.r - frame.l) * 0.38;
+  const h = (frame.b - frame.t) * 0.62;
+  const x = 50 - w / 2;
+  const y = frame.b - h - 2;
+
+  return `
+    <rect
+      x="${x}"
+      y="${y}"
+      width="${w}"
+      height="${h}"
+      fill="#111111"
+      stroke="${color}"
+      stroke-width="${frontStroke(depth)}"
+      opacity="0.95"
+    />
+    <text
+      x="50"
+      y="${y + h * 0.6}"
+      text-anchor="middle"
+      font-family="Courier New, monospace"
+      font-size="${objectTextSize(depth)}"
+      fill="${color}"
+      font-weight="700"
+    >E</text>
+  `;
+}
+
+function drawGroundedObject(obj, depth, lateral, frames) {
+  const frame = frames[depth - 1];
+  const scale = objectScale(depth);
+  const laneWidth = (frame.r - frame.l) / Math.max(2.2, depth * 1.15);
+  const x = 50 + lateral * laneWidth;
+  const floorY = frame.b - 2;
+  const color = obj.color || "#eeeeee";
+
+  if (obj.type === "enemy") {
+    return `
+      <text
+        x="${x}"
+        y="${floorY - scale * 0.15}"
+        text-anchor="middle"
+        font-family="Courier New, monospace"
+        font-size="${scale}"
+        fill="${color}"
+        font-weight="700"
+        ${obj.target ? `stroke="#ffffff" stroke-width="0.3"` : ""}
+      >${escapeHtml(obj.label)}</text>
+    `;
+  }
+
+  if (obj.type === "chest") {
+    const w = scale * 0.9;
+    const h = scale * 0.42;
+    return `
+      <rect
+        x="${x - w / 2}"
+        y="${floorY - h}"
+        width="${w}"
+        height="${h}"
+        fill="#101010"
+        stroke="${color}"
+        stroke-width="${Math.max(0.5, scale / 16)}"
+      />
+      <text
+        x="${x}"
+        y="${floorY - h * 0.25}"
+        text-anchor="middle"
+        font-family="Courier New, monospace"
+        font-size="${scale * 0.55}"
+        fill="${color}"
+        font-weight="700"
+      >C</text>
+    `;
+  }
+
+  if (obj.type === "ammo") {
+    return `
+      <text
+        x="${x}"
+        y="${floorY}"
+        text-anchor="middle"
+        font-family="Courier New, monospace"
+        font-size="${scale * 0.55}"
+        fill="#99ddff"
+        font-weight="700"
+      >a</text>
+    `;
+  }
+
+  return "";
+}
+
+function sceneObjectAt(x, y) {
+  const p = key(x, y);
+
+  const foe = enemyAt(x, y);
+  if (foe && game.visible.has(p)) {
+    const condition = healthCondition(foe.hp, foe.maxHp);
+    return {
+      type: "enemy",
+      label: enemySymbol(foe),
+      color: condition === "healthy" ? "#ff9999" : condition === "injured" ? "#ffcc66" : "#ff5555",
+      target: game.selectedTargetKey === p
+    };
+  }
+
+  const chest = chestAt(x, y);
+  if (chest) {
+    return {
+      type: "chest",
+      label: "C",
+      color: chest.locked ? sceneColor(chest.lockColor) : "#aaaaaa"
+    };
+  }
+
+  const pickup = pickupAt(x, y);
+  if (pickup) {
+    return {
+      type: "ammo",
+      label: "a",
+      color: "#99ddff"
+    };
+  }
+
+  return null;
+}
+
+function relativeTile(depth, lateral) {
+  const f = facingVector();
+  const l = leftVector();
+
+  return {
+    x: game.player.x + f.x * depth + l.x * lateral,
+    y: game.player.y + f.y * depth + l.y * lateral
+  };
+}
+
+function sceneColor(color) {
+  if (color === "red") return "#ff6666";
+  if (color === "blue") return "#66aaff";
+  if (color === "yellow") return "#ffee66";
+  if (color === "green") return "#77ff77";
+  return "#eeeeee";
+}
+
+function sideStroke(depth) {
+  return Math.max(0.35, 1.35 - depth * 0.18);
+}
+
+function frontStroke(depth) {
+  return Math.max(0.45, 1.8 - depth * 0.22);
+}
+
+function sideOpacity(depth) {
+  return Math.max(0.28, 0.92 - depth * 0.11);
+}
+
+function frontOpacity(depth) {
+  return Math.max(0.42, 1 - depth * 0.08);
+}
+
+function wallTextSize(depth) {
+  return Math.max(4, 20 - depth * 2.7);
+}
+
+function objectTextSize(depth) {
+  return Math.max(5, 22 - depth * 2.5);
+}
+
+function objectScale(depth) {
+  return Math.max(7, 25 - depth * 3.2);
+}
