@@ -5,6 +5,7 @@ const MINI_HEIGHT = 11;
 const MAX_LOG_LINES = 4;
 const VIS_RADIUS = 8;
 const FIRST_PERSON_DEPTH = 5;
+const SIDE_VIEW_TILES = 3;
 
 const BASE_MAX_HP = 10;
 const BASE_CLIP_SIZE = 6;
@@ -751,7 +752,7 @@ function isInForwardView(entity) {
   const lateral = dx * l.x + dy * l.y;
 
   if (depth < 1 || depth > FIRST_PERSON_DEPTH) return false;
-  if (Math.abs(lateral) > depth) return false;
+  if (Math.abs(lateral) > SIDE_VIEW_TILES) return false;
   return hasLine(game.player.x, game.player.y, entity.x, entity.y, true);
 }
 
@@ -1338,7 +1339,7 @@ function renderPerspectiveSvg() {
       <defs>
         <radialGradient id="sceneGlow" cx="50%" cy="52%" r="62%">
           <stop offset="0%" stop-color="#151515" />
-          <stop offset="60%" stop-color="#080808" />
+          <stop offset="62%" stop-color="#080808" />
           <stop offset="100%" stop-color="#020202" />
         </radialGradient>
         <linearGradient id="floorFade" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -1348,8 +1349,8 @@ function renderPerspectiveSvg() {
       </defs>
 
       <rect x="0" y="0" width="100" height="56" fill="url(#sceneGlow)" />
-      <polygon points="6,50 94,50 61,31 39,31" fill="url(#floorFade)" opacity="0.75" />
-      <polygon points="6,6 94,6 61,25 39,25" fill="#050505" opacity="0.65" />
+      <polygon points="4,51 96,51 62,31 38,31" fill="url(#floorFade)" opacity="0.86" />
+      <polygon points="4,5 96,5 62,25 38,25" fill="#050505" opacity="0.72" />
   `);
 
   let blockedAheadAt = null;
@@ -1365,7 +1366,7 @@ function renderPerspectiveSvg() {
   for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
     if (!blockedAheadAt || depth <= blockedAheadAt) {
       parts.push(drawOpenFrame(depth, frames));
-      parts.push(drawSideWallsAtDepth(depth, frames));
+      parts.push(drawWideWallsAtDepth(depth, frames));
     }
   }
 
@@ -1393,7 +1394,7 @@ function renderPerspectiveSvg() {
   for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
     if (blockedAheadAt && depth > blockedAheadAt) continue;
 
-    for (let lateral = -depth; lateral <= depth; lateral++) {
+    for (let lateral = -SIDE_VIEW_TILES; lateral <= SIDE_VIEW_TILES; lateral++) {
       const pos = relativeTile(depth, lateral);
       if (!inBounds(pos.x, pos.y)) continue;
 
@@ -1414,11 +1415,11 @@ function renderPerspectiveSvg() {
 
 function perspectiveFrames() {
   return [
-    { l: 5, t: 5, r: 95, b: 51 },
-    { l: 18, t: 10, r: 82, b: 46 },
-    { l: 30, t: 16, r: 70, b: 40 },
-    { l: 40, t: 22, r: 60, b: 34 },
-    { l: 47, t: 26, r: 53, b: 30 },
+    { l: 4, t: 5, r: 96, b: 51 },
+    { l: 17, t: 10, r: 83, b: 46 },
+    { l: 29, t: 16, r: 71, b: 40 },
+    { l: 39, t: 22, r: 61, b: 34 },
+    { l: 46, t: 26, r: 54, b: 30 },
     { l: 50, t: 28, r: 50, b: 28 }
   ];
 }
@@ -1428,46 +1429,64 @@ function drawOpenFrame(depth, frames) {
   const far = frames[depth];
 
   return `
-    <line x1="${near.l}" y1="${near.t}" x2="${far.l}" y2="${far.t}" stroke="#2f6d2f" stroke-width="0.35" opacity="0.22" />
-    <line x1="${near.r}" y1="${near.t}" x2="${far.r}" y2="${far.t}" stroke="#2f6d2f" stroke-width="0.35" opacity="0.22" />
-    <line x1="${near.l}" y1="${near.b}" x2="${far.l}" y2="${far.b}" stroke="#2f6d2f" stroke-width="0.35" opacity="0.22" />
-    <line x1="${near.r}" y1="${near.b}" x2="${far.r}" y2="${far.b}" stroke="#2f6d2f" stroke-width="0.35" opacity="0.22" />
-    <line x1="${near.l}" y1="${near.b}" x2="${near.r}" y2="${near.b}" stroke="#2f6d2f" stroke-width="0.35" opacity="0.18" />
+    <line x1="${near.l}" y1="${near.b}" x2="${near.r}" y2="${near.b}" stroke="#2f6d2f" stroke-width="0.35" opacity="0.16" />
+    <line x1="${near.l}" y1="${near.t}" x2="${near.r}" y2="${near.t}" stroke="#2f6d2f" stroke-width="0.3" opacity="0.10" />
+    <line x1="${near.l}" y1="${near.b}" x2="${far.l}" y2="${far.b}" stroke="#2f6d2f" stroke-width="0.28" opacity="0.14" />
+    <line x1="${near.r}" y1="${near.b}" x2="${far.r}" y2="${far.b}" stroke="#2f6d2f" stroke-width="0.28" opacity="0.14" />
   `;
 }
 
-function drawSideWallsAtDepth(depth, frames) {
-  const near = frames[depth - 1];
-  const far = frames[depth];
-  const leftTile = relativeTile(depth, -1);
-  const rightTile = relativeTile(depth, 1);
+function drawWideWallsAtDepth(depth, frames) {
   const parts = [];
 
-  if (!inBounds(leftTile.x, leftTile.y) || game.walls.has(key(leftTile.x, leftTile.y))) {
-    parts.push(`
-      <polygon
-        points="${near.l},${near.t} ${far.l},${far.t} ${far.l},${far.b} ${near.l},${near.b}"
-        fill="#202020"
-        stroke="#777777"
-        stroke-width="${sideStroke(depth)}"
-        opacity="${sideOpacity(depth)}"
-      />
-    `);
-  }
+  for (let lateral = -SIDE_VIEW_TILES; lateral <= SIDE_VIEW_TILES; lateral++) {
+    if (lateral === 0) continue;
 
-  if (!inBounds(rightTile.x, rightTile.y) || game.walls.has(key(rightTile.x, rightTile.y))) {
-    parts.push(`
-      <polygon
-        points="${near.r},${near.t} ${far.r},${far.t} ${far.r},${far.b} ${near.r},${near.b}"
-        fill="#202020"
-        stroke="#777777"
-        stroke-width="${sideStroke(depth)}"
-        opacity="${sideOpacity(depth)}"
-      />
-    `);
+    const pos = relativeTile(depth, lateral);
+    if (!inBounds(pos.x, pos.y) || game.walls.has(key(pos.x, pos.y))) {
+      parts.push(drawSideWallPanel(depth, lateral, frames));
+    }
   }
 
   return parts.join("");
+}
+
+function drawSideWallPanel(depth, lateral, frames) {
+  const near = frames[depth - 1];
+  const far = frames[depth];
+
+  const screenSide = lateral > 0 ? -1 : 1;
+  const band = Math.min(Math.abs(lateral), SIDE_VIEW_TILES);
+  const sideFactorNear = band / SIDE_VIEW_TILES;
+  const sideFactorFar = Math.max(0.15, (band - 0.6) / SIDE_VIEW_TILES);
+
+  const nearInnerX = screenSide < 0
+    ? lerp(50, near.l, sideFactorNear)
+    : lerp(50, near.r, sideFactorNear);
+  const nearOuterX = screenSide < 0
+    ? lerp(50, near.l, Math.min(1, sideFactorNear + 0.32))
+    : lerp(50, near.r, Math.min(1, sideFactorNear + 0.32));
+
+  const farInnerX = screenSide < 0
+    ? lerp(50, far.l, sideFactorFar)
+    : lerp(50, far.r, sideFactorFar);
+  const farOuterX = screenSide < 0
+    ? lerp(50, far.l, Math.min(1, sideFactorFar + 0.32))
+    : lerp(50, far.r, Math.min(1, sideFactorFar + 0.32));
+
+  const points = screenSide < 0
+    ? `${nearOuterX},${near.t} ${nearInnerX},${near.t} ${farInnerX},${far.t} ${farOuterX},${far.t} ${farOuterX},${far.b} ${farInnerX},${far.b} ${nearInnerX},${near.b} ${nearOuterX},${near.b}`
+    : `${nearInnerX},${near.t} ${nearOuterX},${near.t} ${farOuterX},${far.t} ${farInnerX},${far.t} ${farInnerX},${far.b} ${farOuterX},${far.b} ${nearOuterX},${near.b} ${nearInnerX},${near.b}`;
+
+  return `
+    <polygon
+      points="${points}"
+      fill="#1f1f1f"
+      stroke="#777777"
+      stroke-width="${sideStroke(depth, band)}"
+      opacity="${sideOpacity(depth, band)}"
+    />
+  `;
 }
 
 function drawFrontWall(depth, frames) {
@@ -1477,8 +1496,6 @@ function drawFrontWall(depth, frames) {
   const r = frame.r - inset;
   const t = frame.t + inset;
   const b = frame.b - inset;
-  const cx = (l + r) / 2;
-  const cy = (t + b) / 2;
 
   return `
     <rect
@@ -1491,85 +1508,122 @@ function drawFrontWall(depth, frames) {
       stroke-width="${frontStroke(depth)}"
       opacity="${frontOpacity(depth)}"
     />
-    <text
-      x="${cx}"
-      y="${cy + wallTextSize(depth) / 3}"
-      text-anchor="middle"
-      font-family="Courier New, monospace"
-      font-size="${wallTextSize(depth)}"
-      fill="#aaaaaa"
-      opacity="0.85"
-    >#</text>
   `;
 }
 
 function drawDoor(depth, door, frames) {
   const frame = frames[depth - 1];
+  const wallL = frame.l + 1.2;
+  const wallR = frame.r - 1.2;
+  const wallT = frame.t + 1.2;
+  const wallB = frame.b - 1.2;
   const color = door.locked ? sceneColor(door.color) : "#aaaaaa";
-  const w = (frame.r - frame.l) * 0.34;
-  const h = (frame.b - frame.t) * 0.58;
-  const x = 50 - w / 2;
-  const y = frame.b - h - 2;
+
+  const doorW = (wallR - wallL) * 0.28;
+  const doorH = (wallB - wallT) * 0.66;
+  const x = 50 - doorW / 2;
+  const y = wallB - doorH;
 
   return `
     <rect
+      x="${wallL}"
+      y="${wallT}"
+      width="${wallR - wallL}"
+      height="${wallB - wallT}"
+      fill="#242424"
+      stroke="#777777"
+      stroke-width="${Math.max(0.4, frontStroke(depth) * 0.7)}"
+      opacity="0.72"
+    />
+    <rect
       x="${x}"
       y="${y}"
-      width="${w}"
-      height="${h}"
-      fill="#111111"
+      width="${doorW}"
+      height="${doorH}"
+      fill="#080808"
       stroke="${color}"
       stroke-width="${frontStroke(depth)}"
-      opacity="0.95"
+      opacity="0.98"
     />
-    <text
-      x="50"
-      y="${y + h * 0.58}"
-      text-anchor="middle"
-      font-family="Courier New, monospace"
-      font-size="${objectTextSize(depth)}"
+    <line
+      x1="${x + doorW * 0.5}"
+      y1="${y + 1}"
+      x2="${x + doorW * 0.5}"
+      y2="${y + doorH - 1}"
+      stroke="${color}"
+      stroke-width="${Math.max(0.25, frontStroke(depth) * 0.3)}"
+      opacity="0.55"
+    />
+    <circle
+      cx="${x + doorW * 0.72}"
+      cy="${y + doorH * 0.54}"
+      r="${Math.max(0.35, objectScale(depth) * 0.035)}"
       fill="${color}"
-      font-weight="700"
-    >D</text>
+      opacity="0.9"
+    />
   `;
 }
 
 function drawExit(depth, frames) {
   const frame = frames[depth - 1];
+  const wallL = frame.l + 1.2;
+  const wallR = frame.r - 1.2;
+  const wallT = frame.t + 1.2;
+  const wallB = frame.b - 1.2;
   const color = sceneColor(game.exit.color);
-  const w = (frame.r - frame.l) * 0.38;
-  const h = (frame.b - frame.t) * 0.62;
-  const x = 50 - w / 2;
-  const y = frame.b - h - 2;
+
+  const doorW = (wallR - wallL) * 0.34;
+  const doorH = (wallB - wallT) * 0.72;
+  const x = 50 - doorW / 2;
+  const y = wallB - doorH;
 
   return `
     <rect
+      x="${wallL}"
+      y="${wallT}"
+      width="${wallR - wallL}"
+      height="${wallB - wallT}"
+      fill="#1f1f1f"
+      stroke="#777777"
+      stroke-width="${Math.max(0.4, frontStroke(depth) * 0.7)}"
+      opacity="0.7"
+    />
+    <rect
       x="${x}"
       y="${y}"
-      width="${w}"
-      height="${h}"
-      fill="#111111"
+      width="${doorW}"
+      height="${doorH}"
+      fill="#070707"
       stroke="${color}"
       stroke-width="${frontStroke(depth)}"
-      opacity="0.95"
+      opacity="0.98"
     />
-    <text
-      x="50"
-      y="${y + h * 0.6}"
-      text-anchor="middle"
-      font-family="Courier New, monospace"
-      font-size="${objectTextSize(depth)}"
-      fill="${color}"
-      font-weight="700"
-    >E</text>
+    <line
+      x1="${x + doorW * 0.2}"
+      y1="${y + doorH * 0.18}"
+      x2="${x + doorW * 0.8}"
+      y2="${y + doorH * 0.18}"
+      stroke="${color}"
+      stroke-width="${Math.max(0.25, frontStroke(depth) * 0.35)}"
+      opacity="0.8"
+    />
+    <line
+      x1="${x + doorW * 0.2}"
+      y1="${y + doorH * 0.82}"
+      x2="${x + doorW * 0.8}"
+      y2="${y + doorH * 0.82}"
+      stroke="${color}"
+      stroke-width="${Math.max(0.25, frontStroke(depth) * 0.35)}"
+      opacity="0.8"
+    />
   `;
 }
 
 function drawGroundedObject(obj, depth, lateral, frames) {
   const frame = frames[depth - 1];
   const scale = objectScale(depth);
-  const laneWidth = (frame.r - frame.l) / Math.max(2.2, depth * 1.15);
-  const x = 50 + lateral * laneWidth;
+  const laneWidth = (frame.r - frame.l) / 5.1;
+  const x = 50 - lateral * laneWidth;
   const floorY = frame.b - 2;
   const color = obj.color || "#eeeeee";
 
@@ -1684,24 +1738,20 @@ function sceneColor(color) {
   return "#eeeeee";
 }
 
-function sideStroke(depth) {
-  return Math.max(0.35, 1.35 - depth * 0.18);
+function sideStroke(depth, band = 1) {
+  return Math.max(0.25, 1.15 - depth * 0.15 - band * 0.1);
 }
 
 function frontStroke(depth) {
   return Math.max(0.45, 1.8 - depth * 0.22);
 }
 
-function sideOpacity(depth) {
-  return Math.max(0.82, 1 - depth * 0.03);
+function sideOpacity(depth, band = 1) {
+  return Math.max(0.32, 0.98 - depth * 0.06 - band * 0.12);
 }
 
 function frontOpacity(depth) {
   return 0.98;
-}
-
-function wallTextSize(depth) {
-  return Math.max(4, 20 - depth * 2.7);
 }
 
 function objectTextSize(depth) {
@@ -1710,6 +1760,10 @@ function objectTextSize(depth) {
 
 function objectScale(depth) {
   return Math.max(7, 25 - depth * 3.2);
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
 }
 
 function renderMiniMap() {
