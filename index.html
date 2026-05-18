@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>ASCII Horde</title>
 
-    <link rel="stylesheet" href="./style.css?v=fp2" />
+    <link rel="stylesheet" href="./style.css?v=fpclean1" />
 
     <style>
       * { box-sizing: border-box; }
@@ -91,10 +91,6 @@
         touch-action: manipulation;
       }
 
-      .fp-panel {
-        width: 100%;
-      }
-
       .fp-topline,
       .fp-status {
         color: #dddddd;
@@ -121,63 +117,29 @@
         border-top: 1px solid rgba(102, 255, 102, 0.12);
       }
 
-      .fp-band.depth-5 {
-        font-size: 12px;
-        opacity: 0.45;
-      }
-
-      .fp-band.depth-4 {
-        font-size: 14px;
-        opacity: 0.55;
-      }
-
-      .fp-band.depth-3 {
-        font-size: 17px;
-        opacity: 0.7;
-      }
-
-      .fp-band.depth-2 {
-        font-size: 22px;
-        opacity: 0.88;
-      }
-
+      .fp-band.depth-5 { font-size: 12px; opacity: 0.45; }
+      .fp-band.depth-4 { font-size: 14px; opacity: 0.55; }
+      .fp-band.depth-3 { font-size: 17px; opacity: 0.7; }
+      .fp-band.depth-2 { font-size: 22px; opacity: 0.88; }
       .fp-band.depth-1 {
         font-size: 32px;
         opacity: 1;
         min-height: 42px;
       }
 
-      .fp-empty {
-        color: #225522;
-      }
-
-      .fp-wall {
-        color: #aaaaaa;
-      }
-
-      .fp-door {
-        color: #aaaaaa;
-        font-weight: 700;
-      }
-
-      .fp-chest {
-        color: #aaaaaa;
-        font-weight: 700;
-      }
-
-      .fp-exit {
-        font-weight: 700;
-        text-decoration: underline;
-      }
+      .fp-empty { color: #225522; }
+      .fp-wall { color: #aaaaaa; }
+      .fp-door { color: #aaaaaa; font-weight: 700; }
+      .fp-chest { color: #aaaaaa; font-weight: 700; }
+      .fp-exit { font-weight: 700; text-decoration: underline; }
+      .fp-ammo { color: #99ddff; font-weight: 700; }
 
       .fp-enemy {
         color: #ff9999;
         font-weight: 700;
       }
 
-      .fp-enemy.injured {
-        color: #ffcc66;
-      }
+      .fp-enemy.injured { color: #ffcc66; }
 
       .fp-enemy.critical {
         color: #ff5555;
@@ -188,11 +150,6 @@
         background: #eeeeee;
         color: #000000;
         text-decoration: none;
-      }
-
-      .fp-ammo {
-        color: #99ddff;
-        font-weight: 700;
       }
 
       .red { color: #ff6666; }
@@ -455,7 +412,7 @@
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: first-person-hybrid-1</div>
+        <div id="build" class="build">Build: first-person-clean-1</div>
       </header>
 
       <section class="hud" aria-live="polite">
@@ -526,6 +483,6 @@
       </section>
     </main>
 
-    <script src="./main.js?v=fp2"></script>
+    <script src="./main.js?v=fpclean1"></script>
   </body>
 </html>
