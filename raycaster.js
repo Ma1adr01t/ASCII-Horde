@@ -47,7 +47,10 @@
       for(let j=0;j<number;j++){
         const x=r.x+1+Math.floor(rnd()*(r.w-2));
         const y=r.y+1+Math.floor(rnd()*(r.h-2));
-        if((x===state.player.x&&y===state.player.y)||state.walls.has(x+","+y))continue;
+        if((x===state.player.x&&y===state.player.y)||state.walls.has(x+","+y)||
+          state.doors.some(d=>d.x===x&&d.y===y)||
+          state.chests.some(c=>c.x===x&&c.y===y)||
+          (state.exit.x===x&&state.exit.y===y))continue;
         props.push({x,y,type:Math.floor(rnd()*4),seed:Math.floor(rnd()*1e9),room:i});
       }
     }
@@ -75,6 +78,10 @@
     }
     return decorations={props,posters};
   }
+  let feedbackText = "", feedbackAt = -1, damageAt = -1;
+  function feedback(text){feedbackText=text;feedbackAt=performance.now();}
+  function damage(){damageAt=performance.now();feedback("HIT");}
+  function isPropAt(state,x,y){return makeDecorations(state).props.some(p=>p.x===x&&p.y===y); }
   let recoilStart = -1;
   let animationQueued = false;
   let currentState = null, currentHost = null;
@@ -315,8 +322,8 @@
     ctx.clip();
     const tint=PALETTES[Math.abs(obj.room)%PALETTES.length];
     const rgb=(v)=>"rgba("+Math.round(v*tint[0])+","+Math.round((v+14)*tint[1])+","+Math.round((v+20)*tint[2])+",";
-    ctx.fillStyle=rgb(130)+".23)";
-    ctx.strokeStyle=rgb(190)+".68)";
+    ctx.fillStyle=rgb(130)+".95)";
+    ctx.strokeStyle=rgb(190)+".95)";
     ctx.lineWidth=1;
     const base=top+h;
     ctx.beginPath();ctx.ellipse(sx,base,w*.65,Math.max(1,3/depth),0,0,Math.PI*2);ctx.stroke();
@@ -335,9 +342,6 @@
       ctx.moveTo(x+w*.32,top+h*.45);ctx.lineTo(x+w*.55,top+h*.21);ctx.lineTo(x+w,top+h*.45);
     }
     ctx.fill();ctx.stroke();
-    // Fine, sparse CRT raster scanlines: a projection, not a collision object.
-    ctx.strokeStyle=rgb(206)+".24)";
-    for(let yy=Math.max(0,Math.floor(top));yy<Math.min(H,base);yy+=4){ctx.beginPath();ctx.moveTo(x,yy);ctx.lineTo(x+w,yy);ctx.stroke();}
     ctx.restore();
   }
   function drawPosters(state,items,forward,right,data){
@@ -447,10 +451,32 @@
     drawPosters(state,decor.posters,forward,right,wallData);
     objects.forEach(obj=>drawSprite(state,obj,forward,right,wallData));
     drawWeapon(state);
+    const now=performance.now();
+    const damageAge=now-damageAt, feedbackAge=now-feedbackAt;
+    if(damageAge>=0&&damageAge<290){
+      const fade=1-damageAge/290;
+      ctx.fillStyle="rgba(168,48,68,"+(fade*.25)+")";
+      ctx.fillRect(0,0,W,H);
+      // Deliberately sparse misaligned horizontal bands rather than flashing full-screen.
+      ctx.fillStyle="rgba(216,229,222,"+(fade*.28)+")";
+      for(let i=0;i<5;i++){
+        const y=(Math.imul(i+7,37)+Math.floor(damageAge/35)*17)%H;
+        ctx.fillRect((i*61)%W,y,55,1+(i%2));
+      }
+    }
+    if(feedbackAge>=0&&feedbackAge<560){
+      ctx.save();
+      ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.font="bold 17px monospace";
+      ctx.fillStyle="rgba(0,0,0,.7)";ctx.fillRect(W/2-49,42,98,28);
+      ctx.fillStyle=feedbackText==="MISS"?"#d2d3c7":feedbackText==="HIT"?"#ff8585":"#d8eee0";
+      ctx.fillText(feedbackText,W/2,56);
+      ctx.restore();
+    }
     currentState=state;
     currentHost=host;
     const elapsed=performance.now()-recoilStart;
-    if(elapsed<RECOIL_MS && elapsed>=0 && !animationQueued) {
+    if(((elapsed<RECOIL_MS && elapsed>=0)||(now-feedbackAt<560&&now-feedbackAt>=0)||(now-damageAt<290&&now-damageAt>=0)) && !animationQueued) {
       animationQueued=true;
       requestAnimationFrame(()=>{
         animationQueued=false;
@@ -458,5 +484,5 @@
       });
     }
   }
-  window.ASCIIHordeRaycaster={render,recoil};
+  window.ASCIIHordeRaycaster={render,recoil,feedback,damage,isPropAt};
 })();
