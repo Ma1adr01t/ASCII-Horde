@@ -417,14 +417,25 @@
         height: 100%;
         image-rendering: pixelated;
       }
-    </style>
+          /* Preview 10: viewport-first, compact and quieter interface. */
+      .hud { gap: 3px 11px; font-size: 12px; margin-bottom: 5px; }
+      .viewport-map { font-size: 6px !important; padding: 2px !important; top: 7px; right: 7px; opacity: .82; }
+      .message-log { min-height: 0 !important; max-height: 33px !important; overflow: hidden; opacity: .76; font-size: 11px; }
+      .message-log p:not(:last-child) { display: none; }
+      .inventory { font-size: 11px; }
+      @media (max-width: 560px) {
+        .viewport-map { font-size: 4.5px !important; padding: 2px !important; top: 6px; right: 6px; }
+        .message-log { max-height: 26px !important; min-height: 0 !important; }
+        .hud { font-size: 11px; }
+      }
+</style>
   </head>
 
   <body>
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: canvas-raycasting-preview-9</div>
+        <div id="build" class="build">Build: canvas-raycasting-preview-10</div>
       </header>
 
       <section class="hud" aria-live="polite">
