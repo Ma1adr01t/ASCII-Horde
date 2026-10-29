@@ -428,6 +428,16 @@
         .message-log { max-height: 26px !important; min-height: 0 !important; }
         .hud { font-size: 11px; }
       }
+      /* Compact vector minimap and restrained charcoal-first HUD. */
+      .viewport-map { width: 112px; max-width: 35%; box-sizing: border-box; padding: 3px !important; font-size: 0 !important; line-height: 0 !important; }
+      .viewport-map svg { display: block; width: 100%; height: auto; shape-rendering: crispEdges; }
+      .first-person-view { border: 1px solid #454c48 !important; border-radius: 3px; padding: 3px; }
+      #key-hud { color: #b4cbb6; font-weight: 600; }
+      .inventory:empty { display: none; }
+      @media (max-width: 560px) {
+        .viewport-map { width: 76px; max-width: 31%; padding: 2px !important; }
+        .first-person-view { padding: 2px; }
+      }
 </style>
   </head>
 
@@ -435,7 +445,7 @@
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: canvas-raycasting-preview-10</div>
+        <div id="build" class="build">Build: canvas-raycasting-preview-11</div>
       </header>
 
       <section class="hud" aria-live="polite">
@@ -443,6 +453,7 @@
         <span>Condition: <strong id="condition" class="condition healthy">Healthy</strong></span>
         <span>Mode: <strong id="mode" class="moving">Move</strong></span>
         <span>Ammo: <strong id="shots">6/12</strong></span>
+        <span id="key-hud" hidden></span>
         <span>Turn: <strong id="turn">0</strong></span>
         <span>Kills: <strong id="kills">0</strong></span>
         <span>Enemies: <strong id="enemy-count">0</strong></span>
@@ -451,7 +462,7 @@
       <section class="view-wrap" aria-label="First-person dungeon view">
         <div class="viewport-stack">
           <div id="first-person-view" class="first-person-view"></div>
-          <pre id="mini-map" class="mini-map viewport-map" aria-label="Memory map"></pre>
+          <div id="mini-map" class="mini-map viewport-map" aria-label="Memory map"></div>
         </div>
 
         <div id="chest-overlay" class="overlay hidden" aria-live="assertive">
