@@ -233,12 +233,13 @@
       .dpad {
         display: grid;
         grid-template-columns: 62px 62px 62px;
-        grid-template-rows: 40px 40px 40px;
+        grid-template-rows: 34px 34px 34px 34px;
         gap: 5px;
         grid-template-areas:
           ". up ."
           "left . right"
-          ". down .";
+          ". down ."
+          "strafe-left . strafe-right";
       }
 
       .up { grid-area: up; }
@@ -246,7 +247,9 @@
       .left { grid-area: left; }
       .right { grid-area: right; }
 
-      .strafe-control { font-size: 12px; min-height: 34px; }
+      .strafe-control { font-size: 11px; min-height: 30px; }
+      [data-dir="strafe-left"] { grid-area: strafe-left; }
+      [data-dir="strafe-right"] { grid-area: strafe-right; }
       .actions {
         display: grid;
         grid-template-columns: repeat(2, 82px);
@@ -377,7 +380,7 @@
 
         .dpad {
           grid-template-columns: 54px 54px 54px;
-          grid-template-rows: 35px 35px 35px;
+          grid-template-rows: 31px 31px 31px 31px;
           gap: 4px;
         }
 
