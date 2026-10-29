@@ -49,56 +49,89 @@
     return {dist:Math.max(0.06,dist),side,hit,x,y,kind,door};
   }
 
+  function drawSurfaces(state,forward,right,projection,ox,oy) {
+    // Row-based floor/ceiling casting: every seam belongs to a world grid line.
+    const frame=ctx.createImageData(W,H), pixels=frame.data;
+    for(let y=0;y<H;y++) {
+      const ceiling=y<H/2;
+      const offset=Math.abs(y-H/2+.5);
+      const rowDist=(projection*.5)/Math.max(.5,offset);
+      for(let x=0;x<W;x++) {
+        const cameraX=(x+.5-W/2)/projection;
+        const wx=ox+rowDist*(forward[0]+right[0]*cameraX);
+        const wy=oy+rowDist*(forward[1]+right[1]*cameraX);
+        const tileX=Math.floor(wx),tileY=Math.floor(wy);
+        const fx=wx-tileX,fy=wy-tileY;
+        const seam=Math.min(fx,fy,1-fx,1-fy);
+        const checker=(tileX+tileY)&1;
+        const fog=Math.max(.20,1-rowDist/(MAX_DISTANCE+2));
+        const base=ceiling?(checker?18:20):(checker?31:35);
+        const seamEffect=seam < Math.min(.025,.0035*rowDist) ? (ceiling?8:12) : 0;
+        const shade=Math.round((base+seamEffect)*fog+5);
+        const i=(y*W+x)*4;
+        pixels[i]=shade;
+        pixels[i+1]=shade+(ceiling?1:2);
+        pixels[i+2]=shade;
+        pixels[i+3]=255;
+      }
+    }
+    ctx.putImageData(frame,0,0);
+  }
+
   function drawWalls(state, forward, right) {
-    const ox = state.player.x+0.5, oy = state.player.y+0.5;
-    const projection = W/(2*Math.tan(FOV/2));
-    const depths = new Float32Array(W);
-    ctx.fillStyle="#050909"; ctx.fillRect(0,0,W,H/2);
-    ctx.fillStyle="#121512"; ctx.fillRect(0,H/2,W,H/2);
-    ctx.fillStyle="#1d261d"; ctx.fillRect(0,H/2,W,1);
-    for (let col=0;col<W;col++) {
-      const cameraX=(col+0.5-W/2)/projection;
+    const ox=state.player.x+.5,oy=state.player.y+.5;
+    const projection=W/(2*Math.tan(FOV/2));
+    const depths=new Float32Array(W);
+    drawSurfaces(state,forward,right,projection,ox,oy);
+    for(let col=0;col<W;col++) {
+      const cameraX=(col+.5-W/2)/projection;
       const dx=forward[0]+right[0]*cameraX;
       const dy=forward[1]+right[1]*cameraX;
       const hit=cast(state,ox,oy,dx,dy);
       depths[col]=hit.dist;
-      if (!hit.hit) continue;
-      const height=Math.min(H*3,projection/hit.dist);
-      const y0=Math.round((H-height)/2), y1=Math.round((H+height)/2);
-      const fog=Math.max(0.22,1-hit.dist/(MAX_DISTANCE+1));
-      const base=hit.side===0?88:66;
-      const tone=Math.round(base*fog+10);
+      if(!hit.hit)continue;
+      const height=Math.min(H*4,projection/hit.dist);
+      const y0=Math.round((H-height)/2),y1=Math.round((H+height)/2);
+      const fog=Math.max(.25,1-hit.dist/(MAX_DISTANCE+2));
+      const tone=Math.round((hit.side===0?91:72)*fog+9);
       ctx.fillStyle="rgb("+tone+","+tone+","+tone+")";
       ctx.fillRect(col,y0,1,y1-y0);
-      // Very fine vertical borders at tile boundaries, no floating guides.
-      const hitCoord=hit.side===0 ? oy+hit.dist*dy : ox+hit.dist*dx;
-      const edge=Math.min(hitCoord-Math.floor(hitCoord),1-(hitCoord-Math.floor(hitCoord)));
-      if(edge<0.035) {
-        ctx.fillStyle="rgba(205,220,205,"+(0.65*fog)+")";
+      const hitCoord=hit.side===0?oy+hit.dist*dy:ox+hit.dist*dx;
+      const fraction=hitCoord-Math.floor(hitCoord);
+      const edge=Math.min(fraction,1-fraction);
+      if(edge<.027) {
+        ctx.fillStyle="rgba(210,220,210,"+(.75*fog)+")";
         ctx.fillRect(col,y0,1,y1-y0);
       }
-      if (hit.kind === "door" || hit.kind === "exit") {
-        // Draw a solid wall with a centered, recessed door aperture.
-        const fraction = hitCoord-Math.floor(hitCoord);
-        const aperture = Math.abs(fraction-0.5)<0.26;
-        const top = y0 + height*0.14;
-        if(aperture && y1>top) {
-          const openingColor = hit.kind==="exit"
-            ? COLORS[state.exit.color]
-            : hit.door.locked ? COLORS[hit.door.color] : "#777777";
-          ctx.fillStyle = "#080a09";
+      if(hit.kind==="door"||hit.kind==="exit") {
+        const color=hit.kind==="exit"?(COLORS[state.exit.color]||"#bbb")
+          :hit.door.locked?(COLORS[hit.door.color]||"#bbb"):"#989898";
+        const frameL=.24, frameR=.76, lintel=.16;
+        const isOpening=fraction>frameL&&fraction<frameR;
+        const top=y0+height*lintel;
+        if(isOpening) {
+          const locked=hit.kind==="exit"||hit.door.locked;
+          // Dark doorway cavity, closed panel when locked; open passage when unlocked.
+          ctx.fillStyle=locked?"#272b29":"#050808";
           ctx.fillRect(col,top,1,y1-top);
-          if (Math.abs(fraction-0.5)>0.235) {
-            ctx.fillStyle=openingColor;
+          const border=(fraction<frameL+.028||fraction>frameR-.028);
+          if(border) {
+            ctx.fillStyle=color;
             ctx.fillRect(col,top,1,y1-top);
-          } else if(hit.door && hit.door.locked) {
-            ctx.fillStyle="#202322";
-            ctx.fillRect(col,top+3,1,y1-top-3);
           }
-          if(Math.abs(top-Math.round(top))<=0.5) {
-            ctx.fillStyle=openingColor;
-            ctx.fillRect(col,top,1,Math.max(1,3/hit.dist));
+          if(locked&&Math.abs(fraction-.64)<.013) {
+            ctx.fillStyle=color;
+            ctx.fillRect(col,top+height*.42,1,Math.max(1,height*.045));
           }
+        }
+        // Real jambs and lintel aligned with the same wall's projected surface.
+        if(Math.abs(fraction-frameL)<.014||Math.abs(fraction-frameR)<.014) {
+          ctx.fillStyle=color;
+          ctx.fillRect(col,top,1,y1-top);
+        }
+        if(isOpening) {
+          ctx.fillStyle=color;
+          ctx.fillRect(col,top,1,Math.max(1,2.2/hit.dist));
         }
       }
     }
@@ -130,9 +163,11 @@
     }
     if(!visibleColumns){ctx.restore();return;}
     ctx.clip();
-    // A ground contact shadow anchors every pickup or enemy to the floor.
-    ctx.fillStyle="#020302";
-    ctx.fillRect(left,Math.round(floor)-2,Math.max(2,w),3);
+    // Opaque solid silhouettes and ground contact shadow anchors every pickup or enemy to the floor.
+    ctx.fillStyle="#030403";
+    ctx.fillRect(left-Math.max(1,w*.1),Math.round(floor)-3,Math.max(2,w*1.2),3);
+    ctx.strokeStyle="rgba(0,0,0,.65)";
+    ctx.lineWidth=Math.max(1,1.6/depth);
     if(obj.type==="chest") {
       const col=obj.locked?(COLORS[obj.color]||"#aaa"):"#b3b3b3";
       ctx.fillStyle="#303030";ctx.fillRect(left,top,w,h);
