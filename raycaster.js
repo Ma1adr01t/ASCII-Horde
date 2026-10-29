@@ -96,6 +96,14 @@
       const tone=Math.round((hit.side===0?91:72)*fog+9);
       ctx.fillStyle="rgb("+tone+","+tone+","+tone+")";
       ctx.fillRect(col,y0,1,y1-y0);
+      // Horizontal block courses remain quiet so doors and enemies dominate.
+      if(hit.kind==="wall" && height>12) {
+        ctx.fillStyle="rgba(170,180,170,"+(0.10*fog)+")";
+        for(let course=1;course<4;course++) {
+          const seamY=Math.round(y0+height*course/4);
+          if(seamY>=0 && seamY<H) ctx.fillRect(col,seamY,1,1);
+        }
+      }
       const hitCoord=hit.side===0?oy+hit.dist*dy:ox+hit.dist*dx;
       const fraction=hitCoord-Math.floor(hitCoord);
       const edge=Math.min(fraction,1-fraction);
