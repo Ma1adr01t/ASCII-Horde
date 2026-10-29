@@ -905,6 +905,16 @@ function moveBackward() {
   moveBy(-f.x, -f.y);
 }
 
+function strafeLeft() {
+  const l = leftVector();
+  moveBy(l.x, l.y);
+}
+
+function strafeRight() {
+  const l = leftVector();
+  moveBy(-l.x, -l.y);
+}
+
 function moveBy(dx, dy) {
   resolveAction(() => {
     const nx = game.player.x + dx;
@@ -1860,6 +1870,8 @@ function setup() {
     if (k === "s" || k === "arrowdown") moveBackward();
     if (k === "a" || k === "arrowleft") turnLeft();
     if (k === "d" || k === "arrowright") turnRight();
+    if (k === "q") strafeLeft();
+    if (k === "e") strafeRight();
     if (k === "t") cycleTarget();
     if (k === "f") fireSelectedTarget();
     if (k === "r") reload();
@@ -1874,6 +1886,8 @@ function setup() {
     if (dir === "down") moveBackward();
     if (dir === "left") turnLeft();
     if (dir === "right") turnRight();
+    if (dir === "strafe-left") strafeLeft();
+    if (dir === "strafe-right") strafeRight();
   });
 
   el.targetBtn.addEventListener("click", cycleTarget);
