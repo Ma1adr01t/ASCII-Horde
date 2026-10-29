@@ -30,6 +30,51 @@
   const COLORS = { red:"#ff6666", blue:"#66aaff", yellow:"#ffee66", green:"#77ff77" };
   const DIR = { north:[0,-1], east:[1,0], south:[0,1], west:[-1,0] };
   let canvas, ctx;
+  let decorationsFor = null, decorations = null;
+  function hash(x){ x=(x^61)^(x>>>16); x=Math.imul(x,9); x=x^(x>>>4); x=Math.imul(x,0x27d4eb2d); return (x^(x>>>15))>>>0; }
+  function randFrom(seed){ let n=seed>>>0; return ()=>{n=(Math.imul(n,1664525)+1013904223)>>>0; return n/4294967296;}; }
+  function makeDecorations(state){
+    if(decorationsFor===state.rooms && decorations)return decorations;
+    decorationsFor=state.rooms;
+    const props=[],posters=[];
+    const rooms=state.rooms;
+    let seed=hash(rooms.reduce((a,r,i)=>a+Math.imul(r.x+17*r.y+r.w*11+r.h*7,i+1),57));
+    const rnd=randFrom(seed);
+    for(let i=0;i<rooms.length;i++){
+      const r=rooms[i];
+      if(r.w<4||r.h<4||rnd()<.48)continue;
+      const number=rnd()<.24?2:1;
+      for(let j=0;j<number;j++){
+        const x=r.x+1+Math.floor(rnd()*(r.w-2));
+        const y=r.y+1+Math.floor(rnd()*(r.h-2));
+        if((x===state.player.x&&y===state.player.y)||state.walls.has(x+","+y))continue;
+        props.push({x,y,type:Math.floor(rnd()*4),seed:Math.floor(rnd()*1e9),room:i});
+      }
+    }
+    // A scarce feature: 0-2 inscriptions for an entire dungeon, not per room.
+    const count=rnd()<.32?0:rnd()<.70?1:2;
+    const nouns=["THE LAST ROOM","YOUR REFLECTION","THE HALLWAY","THE SECOND DOOR","THE EMPTY CHAIR","THE LIGHT"];
+    const verbs=["REMEMBERS","IS WAITING FOR","HAS FORGOTTEN","CAN HEAR","DOES NOT RECOGNIZE","WILL REPLACE"];
+    const objects=["YOU","THE OTHERS","THIS PLACE","ITS NAME","THE MORNING","THE EXIT"];
+    const used=new Set();
+    for(let j=0;j<count;j++){
+      for(let tries=0;tries<40;tries++){
+        const i=Math.floor(rnd()*rooms.length),room=rooms[i];
+        if(used.has(i)||room.w<4||room.h<4)continue;
+        const side=Math.floor(rnd()*4);
+        const x=side===0?room.x:side===1?room.x+room.w-1:room.x+1+Math.floor(rnd()*(room.w-2));
+        const y=side===2?room.y:side===3?room.y+room.h-1:room.y+1+Math.floor(rnd()*(room.h-2));
+        // Find actual boundary walls at a fixed position.
+        const wallX=side===0?room.x-1:side===1?room.x+room.w:x;
+        const wallY=side===2?room.y-1:side===3?room.y+room.h:y;
+        if(!state.walls.has(wallX+","+wallY))continue;
+        used.add(i);
+        posters.push({x:wallX,y:wallY,side,text:nouns[Math.floor(rnd()*nouns.length)]+" "+verbs[Math.floor(rnd()*verbs.length)]+" "+objects[Math.floor(rnd()*objects.length)]+".",style:rnd()<.55?"poster":"graffiti"});
+        break;
+      }
+    }
+    return decorations={props,posters};
+  }
   let recoilStart = -1;
   let animationQueued = false;
   let currentState = null, currentHost = null;
@@ -139,8 +184,8 @@
       const hitCoord=hit.side===0?oy+hit.dist*dy:ox+hit.dist*dx;
       const fraction=hitCoord-Math.floor(hitCoord);
       const edge=Math.min(fraction,1-fraction);
-      if(edge<.027) {
-        ctx.fillStyle="rgba(210,220,210,"+(.75*fog)+")";
+      if(edge<.008) {
+        ctx.fillStyle="rgba(150,155,150,"+(.19*fog)+")";
         ctx.fillRect(col,y0,1,y1-y0);
       }
       if(hit.kind==="door"||hit.kind==="exit") {
@@ -255,6 +300,76 @@
     ctx.restore();
   }
 
+  function drawHologram(obj,forward,right,data){
+    const dx=obj.x+.5-data.ox,dy=obj.y+.5-data.oy;
+    const depth=dx*forward[0]+dy*forward[1],lateral=dx*right[0]+dy*right[1];
+    if(depth<.25||depth>MAX_DISTANCE)return;
+    const size=data.projection/depth,sx=W/2+data.projection*lateral/depth;
+    const radius=size*.22,top=H/2+size*WALL_HEIGHT*.5-size*.61;
+    const x=Math.round(sx-radius),w=Math.max(2,radius*2),h=Math.max(3,size*.59);
+    const col=Math.floor(sx);
+    if(col<0||col>=W||depth>data.depths[col]+.03)return;
+    ctx.save();
+    ctx.beginPath();
+    for(let xx=Math.max(0,x);xx<Math.min(W,x+w);xx++)if(depth<data.depths[xx]+.04)ctx.rect(xx,0,1,H);
+    ctx.clip();
+    const tint=PALETTES[Math.abs(obj.room)%PALETTES.length];
+    const rgb=(v)=>"rgba("+Math.round(v*tint[0])+","+Math.round((v+14)*tint[1])+","+Math.round((v+20)*tint[2])+",";
+    ctx.fillStyle=rgb(130)+".23)";
+    ctx.strokeStyle=rgb(190)+".68)";
+    ctx.lineWidth=1;
+    const base=top+h;
+    ctx.beginPath();ctx.ellipse(sx,base,w*.65,Math.max(1,3/depth),0,0,Math.PI*2);ctx.stroke();
+    const type=obj.type;
+    ctx.beginPath();
+    if(type===0){ // cube / rectangular prism
+      ctx.rect(x,top+h*.22,w*.74,h*.72);ctx.moveTo(x,top+h*.22);ctx.lineTo(x+w*.24,top);ctx.lineTo(x+w,top);ctx.lineTo(x+w*.74,top+h*.22);
+      ctx.moveTo(x+w*.74,top+h*.22);ctx.lineTo(x+w,top);
+    }else if(type===1){ // monolith
+      ctx.rect(x+w*.27,top,w*.43,h);
+      ctx.moveTo(x+w*.27,top);ctx.lineTo(x+w*.44,top-h*.08);ctx.lineTo(x+w*.87,top-h*.08);ctx.lineTo(x+w*.70,top);
+    }else if(type===2){ // tapered obelisk
+      ctx.moveTo(sx,top-h*.09);ctx.lineTo(x+w*.72,top+h*.28);ctx.lineTo(x+w*.72,base);ctx.lineTo(x+w*.28,base);ctx.lineTo(x+w*.28,top+h*.28);ctx.closePath();
+    }else{ // wedge
+      ctx.moveTo(x,base);ctx.lineTo(x+w*.32,top+h*.45);ctx.lineTo(x+w,top+h*.45);ctx.lineTo(x+w*.76,base);ctx.closePath();
+      ctx.moveTo(x+w*.32,top+h*.45);ctx.lineTo(x+w*.55,top+h*.21);ctx.lineTo(x+w,top+h*.45);
+    }
+    ctx.fill();ctx.stroke();
+    // Fine, sparse CRT raster scanlines: a projection, not a collision object.
+    ctx.strokeStyle=rgb(206)+".24)";
+    for(let yy=Math.max(0,Math.floor(top));yy<Math.min(H,base);yy+=4){ctx.beginPath();ctx.moveTo(x,yy);ctx.lineTo(x+w,yy);ctx.stroke();}
+    ctx.restore();
+  }
+  function drawPosters(state,items,forward,right,data){
+    for(const p of items){
+      const face=p.side===0?[1,0]:p.side===1?[-1,0]:p.side===2?[0,1]:[0,-1];
+      const wx=p.x+.5+face[0]*.501,wy=p.y+.5+face[1]*.501;
+      const dx=wx-data.ox,dy=wy-data.oy;
+      const depth=dx*forward[0]+dy*forward[1],lateral=dx*right[0]+dy*right[1];
+      if(depth<.35||depth>MAX_DISTANCE||dx*face[0]+dy*face[1]>=0)continue;
+      const sx=W/2+data.projection*lateral/depth,scale=data.projection/depth;
+      const width=scale*.72,height=scale*.29;
+      const left=Math.round(sx-width/2),top=Math.round(H/2-scale*.22);
+      if(left+width<0||left>=W)continue;
+      ctx.save();ctx.beginPath();
+      for(let col=Math.max(0,left);col<Math.min(W,left+width);col++)if(depth<=data.depths[col]+.08)ctx.rect(col,0,1,H);
+      ctx.clip();
+      ctx.fillStyle=p.style==="poster"?"#aeb3aa":"#687a70";
+      ctx.fillRect(left,top,width,height);
+      if(p.style==="poster"){ctx.strokeStyle="#272d2a";ctx.lineWidth=1;ctx.strokeRect(left,top,width,height);}
+      ctx.fillStyle=p.style==="poster"?"#171d1b":"#e5e9d9";
+      ctx.textAlign="center";ctx.textBaseline="middle";
+      const fontSize=Math.max(2,Math.min(8,scale*.095));
+      ctx.font="bold "+fontSize+"px monospace";
+      const words=p.text.split(" "),lines=[],maxChars=20;
+      let line="";
+      for(const word of words){if((line+" "+word).trim().length>maxChars){lines.push(line);line=word;}else line=(line+" "+word).trim();}
+      if(line)lines.push(line);
+      const lineHeight=fontSize*1.12;
+      lines.forEach((t,i)=>ctx.fillText(t,sx,top+height/2+(i-(lines.length-1)/2)*lineHeight,width*.94));
+      ctx.restore();
+    }
+  }
   function drawWeapon(state) {
     const aiming=Boolean(state.aiming);
     const elapsed=performance.now()-recoilStart;
@@ -319,6 +434,9 @@
     state.pickups.forEach(p=>{if(isVisible(p.x,p.y))objects.push({type:"ammo",x:p.x,y:p.y});});
     state.enemies.forEach(e=>{if(isVisible(e.x,e.y))objects.push({type:"enemy",x:e.x,y:e.y,enemy:e});});
     objects.sort((a,b)=>(b.x-state.player.x)**2+(b.y-state.player.y)**2-((a.x-state.player.x)**2+(a.y-state.player.y)**2));
+    const decor=makeDecorations(state);
+    decor.props.forEach(p=>drawHologram(p,forward,right,wallData));
+    drawPosters(state,decor.posters,forward,right,wallData);
     objects.forEach(obj=>drawSprite(state,obj,forward,right,wallData));
     drawWeapon(state);
     currentState=state;
