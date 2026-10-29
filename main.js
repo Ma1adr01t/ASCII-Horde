@@ -1327,7 +1327,11 @@ function render() {
 }
 
 function renderFirstPersonView() {
-  el.firstPersonView.innerHTML = renderPerspectiveSvg();
+  if (window.ASCIIHordeRaycaster) {
+    window.ASCIIHordeRaycaster.render(game, el.firstPersonView);
+  } else {
+    el.firstPersonView.innerHTML = renderPerspectiveSvg();
+  }
 }
 
 function renderPerspectiveSvg() {
