@@ -347,26 +347,34 @@
       const dx=wx-data.ox,dy=wy-data.oy;
       const depth=dx*forward[0]+dy*forward[1],lateral=dx*right[0]+dy*right[1];
       if(depth<.35||depth>MAX_DISTANCE||dx*face[0]+dy*face[1]>=0)continue;
+      // Posters are small wall-mounted plaques, not sprites that fill the camera.
+      // Cap their screen footprint near a wall while preserving natural distant scaling.
       const sx=W/2+data.projection*lateral/depth,scale=data.projection/depth;
-      const width=scale*.72,height=scale*.29;
-      const left=Math.round(sx-width/2),top=Math.round(H/2-scale*.22);
+      const width=Math.min(W*.46,scale*.44);
+      const height=Math.min(H*.20,scale*.18);
+      const left=Math.round(sx-width/2),top=Math.round(H/2-scale*.08-height/2);
       if(left+width<0||left>=W)continue;
       ctx.save();ctx.beginPath();
-      for(let col=Math.max(0,left);col<Math.min(W,left+width);col++)if(depth<=data.depths[col]+.08)ctx.rect(col,0,1,H);
+      for(let col=Math.max(0,Math.floor(left));col<Math.min(W,Math.ceil(left+width));col++)
+        if(depth<=data.depths[col]+.10)ctx.rect(col,0,1,H);
       ctx.clip();
       ctx.fillStyle=p.style==="poster"?"#aeb3aa":"#687a70";
       ctx.fillRect(left,top,width,height);
       if(p.style==="poster"){ctx.strokeStyle="#272d2a";ctx.lineWidth=1;ctx.strokeRect(left,top,width,height);}
       ctx.fillStyle=p.style==="poster"?"#171d1b":"#e5e9d9";
       ctx.textAlign="center";ctx.textBaseline="middle";
-      const fontSize=Math.max(2,Math.min(8,scale*.095));
-      ctx.font="bold "+fontSize+"px monospace";
-      const words=p.text.split(" "),lines=[],maxChars=20;
+      const words=p.text.split(" "),lines=[],maxChars=22;
       let line="";
-      for(const word of words){if((line+" "+word).trim().length>maxChars){lines.push(line);line=word;}else line=(line+" "+word).trim();}
+      for(const word of words){
+        if((line+" "+word).trim().length>maxChars && line){lines.push(line);line=word;}
+        else line=(line+" "+word).trim();
+      }
       if(line)lines.push(line);
+      // Text scales with its actual plaque, rather than endlessly enlarging at close range.
+      const fontSize=Math.max(2,Math.min(7,height/(lines.length*1.35)));
+      ctx.font="bold "+fontSize+"px monospace";
       const lineHeight=fontSize*1.12;
-      lines.forEach((t,i)=>ctx.fillText(t,sx,top+height/2+(i-(lines.length-1)/2)*lineHeight,width*.94));
+      lines.forEach((t,i)=>ctx.fillText(t,sx,top+height/2+(i-(lines.length-1)/2)*lineHeight,width*.91));
       ctx.restore();
     }
   }
