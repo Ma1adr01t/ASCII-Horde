@@ -95,9 +95,9 @@
         const seam=Math.min(fx,fy,1-fx,1-fy);
         const checker=(tileX+tileY)&1;
         const fog=Math.max(.16,1-rowDist/(MAX_DISTANCE+1));
-        const base=ceiling?(checker?35:46):(checker?29:41);
+        const base=ceiling?64:(checker?29:41);
         const tint=paletteAt(state,tileX,tileY);
-        const seamEffect=seam < Math.min(.022,.003*rowDist) ? (ceiling?3:6) : 0;
+        const seamEffect=!ceiling && seam < Math.min(.022,.003*rowDist) ? 6 : 0;
         const shade=Math.round((base+seamEffect)*fog+5);
         const i=(y*W+x)*4;
         pixels[i]=Math.min(255,Math.round(shade*tint[0]));
@@ -218,18 +218,38 @@
       ctx.fillStyle="#9bdcff";ctx.fillRect(left,top,w,h);
       ctx.fillStyle="#35647a";ctx.fillRect(left,top,w,Math.max(1,h*.24));
     } else if(obj.type==="enemy") {
-      const ratio=obj.enemy.hp/obj.enemy.maxHp;
-      const color=ratio>.6?"#ff9999":ratio>.3?"#ffcc66":"#ff5555";
-      ctx.fillStyle=color;
-      ctx.fillRect(left+w*.23,top+h*.25,w*.54,h*.57);
-      ctx.fillRect(left+w*.3,top,w*.4,h*.33);
-      ctx.fillRect(left+w*.18,top+h*.8,w*.22,h*.2);
-      ctx.fillRect(left+w*.6,top+h*.8,w*.22,h*.2);
-      ctx.fillStyle="#111";
-      ctx.fillRect(left+w*.38,top+h*.11,Math.max(1,w*.09),Math.max(1,h*.05));
-      ctx.fillRect(left+w*.57,top+h*.11,Math.max(1,w*.09),Math.max(1,h*.05));
-      if(state.selectedTargetKey===obj.x+","+obj.y) {
-        ctx.strokeStyle="#fff";ctx.lineWidth=Math.max(1,2/depth);ctx.strokeRect(left-2,top-2,w+4,h+4);
+      // Stable pseudo-random corruption derived from each entity, never from frame time.
+      const id=(obj.enemy.id===undefined?0:Number(obj.enemy.id)||0);
+      let seed=(Math.imul(obj.x+1,73856093)^Math.imul(obj.y+1,19349663)^Math.imul(id+1,83492791))>>>0;
+      const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+      const px=Math.max(1,w/11),py=Math.max(1,h/19);
+      const variant=Math.floor(rand()*4);
+      const body=["#a0abb1","#9ea8a0","#b9a3b3","#b3b09a"][variant];
+      const accent=["#d6dece","#d6c9b2","#c4d5e7","#c8ddc8"][variant];
+      const dark="#222a2d";
+      // Coherent, upright, humanoid mass first; broken pixels deform its contour.
+      ctx.fillStyle=dark;ctx.fillRect(left+w*.27,top+h*.21,w*.48,h*.58);
+      ctx.fillStyle=body;
+      ctx.fillRect(left+w*.32,top+h*.21,w*.36,h*.55);
+      ctx.fillRect(left+w*.36,top+h*.04,w*.28,h*.25);
+      ctx.fillRect(left+w*.16,top+h*.30,w*.18,h*.37);
+      ctx.fillRect(left+w*.66,top+h*.30,w*.18,h*.37);
+      ctx.fillRect(left+w*.34,top+h*.72,w*.15,h*.27);
+      ctx.fillRect(left+w*.52,top+h*.72,w*.15,h*.27);
+      // Different silhouettes share a recognizable corrupted shape language.
+      for(let j=0;j<23;j++){
+        const bx=Math.floor(rand()*11),by=Math.floor(rand()*17);
+        const blockW=px*(1+Math.floor(rand()*3)),blockH=py*(1+Math.floor(rand()*3));
+        ctx.fillStyle=rand()<.26?dark:rand()<.52?accent:body;
+        ctx.fillRect(left+bx*px,top+by*py,blockW,blockH);
+      }
+      // An invariant bright fault line makes the entire species identifiable.
+      ctx.fillStyle="#dce6e4";
+      ctx.fillRect(left+w*.42,top+h*.10,Math.max(1,w*.13),Math.max(1,h*.05));
+      ctx.fillRect(left+w*.45,top+h*.18,Math.max(1,w*.07),Math.max(1,h*.34));
+      if(state.selectedTargetKey===obj.x+","+obj.y){
+        ctx.strokeStyle="#fff";ctx.lineWidth=Math.max(1,2/depth);
+        ctx.strokeRect(left-2,top-2,w+4,h+4);
       }
     }
     ctx.restore();
