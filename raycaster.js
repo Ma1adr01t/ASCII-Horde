@@ -4,6 +4,29 @@
   "use strict";
   const W = 320, H = 180, FOV = Math.PI * 0.46;
   const MAX_DISTANCE = 12;
+  const WALL_HEIGHT = 1.35;
+  // Deliberately subdued, room-specific wall/ceiling/floor tints.
+  const PALETTES = [
+    [1.00,1.02,1.00], [1.01,0.98,0.88], [0.88,0.98,1.08],
+    [0.95,1.04,0.92], [1.07,0.94,0.96], [0.99,0.96,1.08]
+  ];
+  function paletteAt(state,x,y) {
+    let best=-1, distance=Infinity;
+    for(let i=0;i<state.rooms.length;i++) {
+      const room=state.rooms[i];
+      if(x>=room.x&&x<room.x+room.w&&y>=room.y&&y<room.y+room.h) {
+        best=i;break;
+      }
+      const nearX=Math.max(room.x,Math.min(x,room.x+room.w-1));
+      const nearY=Math.max(room.y,Math.min(y,room.y+room.h-1));
+      const d=(nearX-x)*(nearX-x)+(nearY-y)*(nearY-y);
+      if(d<distance){distance=d;best=i;}
+    }
+    if(best<0)return PALETTES[0];
+    const room=state.rooms[best];
+    const hash=(room.x*17+room.y*31+room.w*7+room.h*13+best*11);
+    return PALETTES[Math.abs(hash)%PALETTES.length];
+  }
   const COLORS = { red:"#ff6666", blue:"#66aaff", yellow:"#ffee66", green:"#77ff77" };
   const DIR = { north:[0,-1], east:[1,0], south:[0,1], west:[-1,0] };
   let canvas, ctx;
@@ -55,7 +78,7 @@
     for(let y=0;y<H;y++) {
       const ceiling=y<H/2;
       const offset=Math.abs(y-H/2+.5);
-      const rowDist=(projection*.5)/Math.max(.5,offset);
+      const rowDist=(projection*WALL_HEIGHT*.5)/Math.max(.5,offset);
       for(let x=0;x<W;x++) {
         const cameraX=(x+.5-W/2)/projection;
         const wx=ox+rowDist*(forward[0]+right[0]*cameraX);
@@ -65,13 +88,14 @@
         const seam=Math.min(fx,fy,1-fx,1-fy);
         const checker=(tileX+tileY)&1;
         const fog=Math.max(.16,1-rowDist/(MAX_DISTANCE+1));
-        const base=ceiling?(checker?17:19):(checker?28:39);
+        const base=ceiling?(checker?35:46):(checker?29:41);
+        const tint=paletteAt(state,tileX,tileY);
         const seamEffect=seam < Math.min(.022,.003*rowDist) ? (ceiling?3:6) : 0;
         const shade=Math.round((base+seamEffect)*fog+5);
         const i=(y*W+x)*4;
-        pixels[i]=shade;
-        pixels[i+1]=shade+(ceiling?1:2);
-        pixels[i+2]=shade;
+        pixels[i]=Math.min(255,Math.round(shade*tint[0]));
+        pixels[i+1]=Math.min(255,Math.round((shade+1)*tint[1]));
+        pixels[i+2]=Math.min(255,Math.round(shade*tint[2]));
         pixels[i+3]=255;
       }
     }
@@ -90,11 +114,12 @@
       const hit=cast(state,ox,oy,dx,dy);
       depths[col]=hit.dist;
       if(!hit.hit)continue;
-      const height=Math.min(H*4,projection/hit.dist);
+      const height=Math.min(H*4,projection*WALL_HEIGHT/hit.dist);
       const y0=Math.round((H-height)/2),y1=Math.round((H+height)/2);
       const fog=Math.max(.25,1-hit.dist/(MAX_DISTANCE+2));
-      const tone=Math.round((hit.side===0?91:72)*fog+9);
-      ctx.fillStyle="rgb("+tone+","+tone+","+tone+")";
+      const tone=Math.round((hit.side===0?95:76)*fog+11);
+      const tint=paletteAt(state,hit.x,hit.y);
+      ctx.fillStyle="rgb("+Math.round(tone*tint[0])+","+Math.round(tone*tint[1])+","+Math.round(tone*tint[2])+")";
       ctx.fillRect(col,y0,1,y1-y0);
       // Horizontal block courses remain quiet so doors and enemies dominate.
       if(hit.kind==="wall" && height>12) {
@@ -155,7 +180,7 @@
     const size=data.projection/depth;
     const w=size*(obj.type==="enemy" ? .38 : obj.type==="chest" ? .50 : .18);
     const h=size*(obj.type==="enemy" ? .72 : obj.type==="chest" ? .31 : .17);
-    const floor=H/2+size*.5;
+    const floor=H/2+size*WALL_HEIGHT*.5;
     const left=Math.round(sx-w/2), top=Math.round(floor-h), rightEdge=Math.ceil(sx+w/2);
     if(rightEdge<0||left>=W) return;
 
