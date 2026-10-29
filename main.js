@@ -905,6 +905,16 @@ function moveBackward() {
   moveBy(-f.x, -f.y);
 }
 
+function strafeLeft() {
+  const l = leftVector();
+  moveBy(l.x, l.y);
+}
+
+function strafeRight() {
+  const l = leftVector();
+  moveBy(-l.x, -l.y);
+}
+
 function moveBy(dx, dy) {
   resolveAction(() => {
     const nx = game.player.x + dx;
@@ -914,10 +924,11 @@ function moveBy(dx, dy) {
     game.aiming = false;
 
     if (!inBounds(nx, ny) || game.walls.has(p)) {
-      addLog("A wall blocks your way.");
+      return false; // Collision is obvious in the first-person viewport.
       return false;
     }
 
+    if(window.ASCIIHordeRaycaster && window.ASCIIHordeRaycaster.isPropAt(game,nx,ny))return false;
     const door = doorAt(nx, ny);
 
     if (door && door.locked) {
@@ -1018,12 +1029,17 @@ function tryShootAt(x, y) {
 
     game.shots--;
     game.turn++;
+    if (window.ASCIIHordeRaycaster && window.ASCIIHordeRaycaster.recoil) {
+      window.ASCIIHordeRaycaster.recoil();
+    }
 
     if (Math.random() < MISS_CHANCE) {
+      window.ASCIIHordeRaycaster?.feedback("MISS");
       addLog("Your shot snaps wide in the dark.");
       return true;
     }
 
+    window.ASCIIHordeRaycaster?.feedback("HIT");
     foe.hp -= game.shotDamage;
 
     if (foe.hp > 0) {
@@ -1193,6 +1209,7 @@ function applyDamage(damage) {
   }
 
   if (remaining > 0) {
+    window.ASCIIHordeRaycaster?.damage();
     game.player.hp -= remaining;
     const condition = conditionLabel(healthCondition(Math.max(0, game.player.hp), game.player.maxHp)).toLowerCase();
     addLog(`You take ${remaining} damage. You are ${condition}.`);
@@ -1327,7 +1344,11 @@ function render() {
 }
 
 function renderFirstPersonView() {
-  el.firstPersonView.innerHTML = renderPerspectiveSvg();
+  if (window.ASCIIHordeRaycaster) {
+    window.ASCIIHordeRaycaster.render(game, el.firstPersonView);
+  } else {
+    el.firstPersonView.innerHTML = renderPerspectiveSvg();
+  }
 }
 
 function renderPerspectiveSvg() {
@@ -1767,20 +1788,25 @@ function lerp(a, b, t) {
 }
 
 function renderMiniMap() {
-  const origin = miniMapOrigin();
-  const rows = [];
-
-  for (let vy = 0; vy < MINI_HEIGHT; vy++) {
-    const row = [];
-
-    for (let vx = 0; vx < MINI_WIDTH; vx++) {
-      row.push(renderMapCell(origin.x + vx, origin.y + vy));
+  const origin=miniMapOrigin(),size=5;
+  let shapes='<rect width="'+(MINI_WIDTH*size)+'" height="'+(MINI_HEIGHT*size)+'" fill="#080b09"/>';
+  const colors={D:"#e4e8df",E:"#f3e687",C:"#d9c1a3",a:"#a8ddf1"};
+  for(let vy=0;vy<MINI_HEIGHT;vy++)for(let vx=0;vx<MINI_WIDTH;vx++){
+    const x=origin.x+vx,y=origin.y+vy;
+    const c=renderMapCell(x,y),px=vx*size,py=vy*size;
+    if(c==="#")shapes+='<rect x="'+px+'" y="'+py+'" width="5" height="5" fill="#617367"/>';
+    else if(c===" ")shapes+='<rect x="'+px+'" y="'+py+'" width="5" height="5" fill="#1b2c21"/>';
+    else if(c==="."||c===",")shapes+='<rect x="'+(px+2)+'" y="'+(py+2)+'" width="1" height="1" fill="#28362b"/>';
+    else if(c==="^"||c==="v"||c==="<"||c===">"){
+      shapes+='<rect x="'+px+'" y="'+py+'" width="5" height="5" fill="#142819"/>';
+      const point=c==="^"?"2,0 0,4 4,4":c==="v"?"0,0 4,0 2,4":c==="<"?"0,2 4,0 4,4":"0,0 4,2 0,4";
+      shapes+='<polygon points="'+point.split(" ").map(q=>{const v=q.split(",");return (px+Number(v[0]))+","+(py+Number(v[1]));}).join(" ")+'" fill="#87f49a"/>';
+    }else{
+      const color=colors[c]||"#f28b82";
+      shapes+='<rect x="'+(px+1)+'" y="'+(py+1)+'" width="3" height="3" fill="'+color+'"/>';
     }
-
-    rows.push(row.join(""));
   }
-
-  el.miniMap.textContent = rows.join("\n");
+  el.miniMap.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+(MINI_WIDTH*size)+' '+(MINI_HEIGHT*size)+'" aria-label="Dungeon minimap" role="img">'+shapes+'</svg>';
 }
 
 function renderMapCell(x, y) {
@@ -1833,7 +1859,12 @@ function renderInventory() {
     return `<div class="inventory-row"><span>${escapeHtml(label)}</span>${button}</div>`;
   }).join("");
 
-  el.inventory.innerHTML = `<strong>${escapeHtml(keyText)}</strong>${rows || `<div class="inventory-row"><span>No carried items</span></div>`}`;
+  el.inventory.innerHTML = rows || "";
+  const keyHud=document.getElementById("key-hud");
+  if(keyHud){
+    keyHud.textContent=game.keys.length ? "Keys: "+game.keys.map(titleColor).join(", ") : "";
+    keyHud.hidden=!game.keys.length;
+  }
 }
 
 function setup() {
@@ -1856,6 +1887,8 @@ function setup() {
     if (k === "s" || k === "arrowdown") moveBackward();
     if (k === "a" || k === "arrowleft") turnLeft();
     if (k === "d" || k === "arrowright") turnRight();
+    if (k === "q") strafeLeft();
+    if (k === "e") strafeRight();
     if (k === "t") cycleTarget();
     if (k === "f") fireSelectedTarget();
     if (k === "r") reload();
@@ -1870,6 +1903,8 @@ function setup() {
     if (dir === "down") moveBackward();
     if (dir === "left") turnLeft();
     if (dir === "right") turnRight();
+    if (dir === "strafe-left") strafeLeft();
+    if (dir === "strafe-right") strafeRight();
   });
 
   el.targetBtn.addEventListener("click", cycleTarget);

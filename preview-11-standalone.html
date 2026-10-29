@@ -1,0 +1,2974 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>ASCII Horde</title>
+
+    <link rel="stylesheet" href="./style.css?v=wireframe1" />
+
+    <style>
+      * { box-sizing: border-box; }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: none;
+      }
+
+      body {
+        position: fixed;
+        inset: 0;
+        min-height: 100dvh;
+        background: #101010;
+        color: #eeeeee;
+        font-family: "Courier New", Courier, monospace;
+      }
+
+      .game-shell {
+        width: min(760px, 100vw);
+        height: 100dvh;
+        margin: 0 auto;
+        padding: 8px;
+        text-align: center;
+        overflow: hidden;
+      }
+
+      .title-block { margin-bottom: 4px; }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(22px, 6vw, 36px);
+        letter-spacing: 2px;
+      }
+
+      h2 { margin: 0 0 10px; }
+
+      .build {
+        margin-top: 3px;
+        color: #999999;
+        font-size: 12px;
+      }
+
+      .hud {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 5px 10px;
+        margin: 6px auto;
+        font-size: 13px;
+        line-height: 1.2;
+      }
+
+      .condition { font-weight: 700; }
+      .healthy { color: #77ff77; }
+      .injured { color: #ffd166; }
+      .critical { color: #ff6666; }
+      .aiming { color: #99ddff; }
+      .moving { color: #dddddd; }
+
+      .view-wrap {
+        position: relative;
+        display: inline-block;
+        width: min(620px, 100%);
+      }
+
+      .first-person-view {
+        width: 100%;
+        min-height: 220px;
+        margin: 0 auto;
+        padding: 8px;
+        background: #000000;
+        color: #66ff66;
+        border: 2px solid #66ff66;
+        border-radius: 6px;
+        overflow: hidden;
+        user-select: none;
+        touch-action: manipulation;
+      }
+
+      .fp-svg-wrap {
+        width: 100%;
+        height: 202px;
+        margin: 0 auto;
+      }
+
+      .fp-svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle at center, #111 0%, #050505 72%, #000 100%);
+      }
+
+      .fp-line {
+        stroke: #2f7a2f;
+        stroke-width: 2;
+        fill: none;
+        opacity: 0.85;
+      }
+
+      .fp-line-dim {
+        stroke: #1d4d1d;
+        stroke-width: 1.5;
+        fill: none;
+        opacity: 0.45;
+      }
+
+      .fp-wall-plane {
+        fill: rgba(150, 150, 150, 0.06);
+        stroke: #888888;
+        stroke-width: 2.5;
+      }
+
+      .fp-side-wall {
+        fill: rgba(130, 130, 130, 0.045);
+        stroke: #777777;
+        stroke-width: 1.8;
+      }
+
+      .fp-wire {
+        fill: none;
+        stroke-width: 3;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .fp-wire-thin {
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .fp-fill-soft {
+        fill: rgba(255, 255, 255, 0.035);
+      }
+
+      .fp-target-glow {
+        fill: rgba(238, 238, 238, 0.16);
+        stroke: #eeeeee;
+        stroke-width: 2;
+      }
+
+      .fp-gray { stroke: #aaaaaa; fill: #aaaaaa; }
+      .fp-red { stroke: #ff6666; fill: #ff6666; }
+      .fp-blue { stroke: #66aaff; fill: #66aaff; }
+      .fp-yellow { stroke: #ffee66; fill: #ffee66; }
+      .fp-keygreen { stroke: #77ff77; fill: #77ff77; }
+      .fp-white { stroke: #eeeeee; fill: #eeeeee; }
+      .fp-enemy { stroke: #ff9999; fill: #ff9999; }
+      .fp-enemy-injured { stroke: #ffcc66; fill: #ffcc66; }
+      .fp-enemy-critical { stroke: #ff5555; fill: #ff5555; }
+      .fp-ammo { stroke: #99ddff; fill: #99ddff; }
+
+      .viewport-stack { position: relative; width: 100%; isolation: isolate; }
+      .viewport-map {
+        position: absolute;
+        top: 11px;
+        right: 11px;
+        z-index: 4;
+        margin: 0 !important;
+        background: rgba(0,0,0,.76) !important;
+        border-color: rgba(115,185,115,.55) !important;
+        box-shadow: 0 1px 6px rgba(0,0,0,.55);
+        pointer-events: none;
+        opacity: .88;
+      }
+      .mini-map {
+        display: block;
+        width: min-content;
+        max-width: 100%;
+        margin: 6px auto 0;
+        padding: 6px;
+        background: #030303;
+        color: #66ff66;
+        border: 1px solid #335533;
+        border-radius: 4px;
+        text-align: left;
+        font-size: 11px;
+        line-height: 1;
+        white-space: pre;
+        overflow: hidden;
+        user-select: none;
+      }
+
+      .message-log {
+        width: min(620px, 100%);
+        min-height: 76px;
+        max-height: 84px;
+        margin: 7px auto 0;
+        padding: 7px 10px;
+        background: #050505;
+        border: 1px solid #444444;
+        border-radius: 6px;
+        text-align: left;
+        color: #dddddd;
+        font-size: 13px;
+        overflow: hidden;
+      }
+
+      .message-log p { margin: 2px 0; }
+
+      .inventory {
+        width: min(620px, 100%);
+        margin: 7px auto;
+        padding: 6px 10px;
+        background: #161616;
+        border: 1px solid #333333;
+        border-radius: 6px;
+        text-align: left;
+        font-size: 13px;
+        max-height: 74px;
+        overflow: hidden;
+      }
+
+      .inventory-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 3px;
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-top: 7px;
+      }
+
+      .dpad {
+        display: grid;
+        grid-template-columns: 62px 62px 62px;
+        grid-template-rows: 34px 34px 34px 34px;
+        gap: 5px;
+        grid-template-areas:
+          ". up ."
+          "left . right"
+          ". down ."
+          "strafe-left . strafe-right";
+      }
+
+      .up { grid-area: up; }
+      .down { grid-area: down; }
+      .left { grid-area: left; }
+      .right { grid-area: right; }
+
+      .strafe-control { font-size: 11px; min-height: 30px; }
+      [data-dir="strafe-left"] { grid-area: strafe-left; }
+      [data-dir="strafe-right"] { grid-area: strafe-right; }
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(2, 82px);
+        gap: 6px;
+      }
+
+      .btn {
+        min-height: 38px;
+        padding: 7px 10px;
+        background: #222222;
+        color: #eeeeee;
+        border: 1px solid #777777;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 14px;
+        cursor: pointer;
+        touch-action: manipulation;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+
+      .btn:hover,
+      .btn:focus {
+        background: #333333;
+        outline: 2px solid #66ff66;
+        outline-offset: 2px;
+      }
+
+      .primary-action { border-color: #99ddff; }
+      .danger-action { border-color: #aa5555; }
+
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(0, 0, 0, 0.68);
+        z-index: 10;
+      }
+
+      .hidden { display: none !important; }
+
+      .modal {
+        width: min(310px, 88%);
+        padding: 16px;
+        background: #111111;
+        color: #eeeeee;
+        border: 2px solid #66ff66;
+        border-radius: 8px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65);
+      }
+
+      .modal p {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      .legend {
+        width: min(620px, 100%);
+        margin: 6px auto 0;
+        color: #bbbbbb;
+        font-size: 12px;
+      }
+
+      .legend p { margin: 0; }
+
+      @media (max-width: 560px) {
+        .game-shell { padding: 5px; }
+
+        h1,
+        .build,
+        .legend {
+          display: none;
+        }
+
+        .hud {
+          margin: 3px auto 5px;
+          gap: 3px 7px;
+          font-size: 12px;
+        }
+
+        .first-person-view {
+          min-height: 168px;
+          padding: 5px;
+        }
+
+        .fp-svg-wrap {
+          height: 156px;
+        }
+
+        .mini-map {
+          font-size: 7px;
+          padding: 3px;
+          margin-top: 0;
+          top: 8px;
+          right: 8px;
+          line-height: 1;
+        }
+
+        .message-log {
+          min-height: 60px;
+          max-height: 66px;
+          margin-top: 5px;
+          padding: 5px 8px;
+          font-size: 11px;
+        }
+
+        .message-log p:nth-last-child(n+4) {
+          display: none;
+        }
+
+        .inventory {
+          margin: 5px auto;
+          padding: 5px 8px;
+          font-size: 11px;
+          max-height: 56px;
+        }
+
+        .inventory-row { margin-top: 2px; }
+
+        .controls {
+          margin-top: 5px;
+          gap: 7px;
+        }
+
+        .dpad {
+          grid-template-columns: 54px 54px 54px;
+          grid-template-rows: 31px 31px 31px 31px;
+          gap: 4px;
+        }
+
+        .actions {
+          grid-template-columns: repeat(2, 72px);
+          gap: 4px;
+        }
+
+        .btn {
+          min-height: 34px;
+          padding: 5px 8px;
+          font-size: 12px;
+        }
+      }
+      .raycast-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        image-rendering: pixelated;
+      }
+          /* Preview 10: viewport-first, compact and quieter interface. */
+      .hud { gap: 3px 11px; font-size: 12px; margin-bottom: 5px; }
+      .viewport-map { font-size: 6px !important; padding: 2px !important; top: 7px; right: 7px; opacity: .82; }
+      .message-log { min-height: 0 !important; max-height: 33px !important; overflow: hidden; opacity: .76; font-size: 11px; }
+      .message-log p:not(:last-child) { display: none; }
+      .inventory { font-size: 11px; }
+      @media (max-width: 560px) {
+        .viewport-map { font-size: 4.5px !important; padding: 2px !important; top: 6px; right: 6px; }
+        .message-log { max-height: 26px !important; min-height: 0 !important; }
+        .hud { font-size: 11px; }
+      }
+      /* Compact vector minimap and restrained charcoal-first HUD. */
+      .viewport-map { width: 112px; max-width: 35%; box-sizing: border-box; padding: 3px !important; font-size: 0 !important; line-height: 0 !important; }
+      .viewport-map svg { display: block; width: 100%; height: auto; shape-rendering: crispEdges; }
+      .first-person-view { border: 1px solid #454c48 !important; border-radius: 3px; padding: 3px; }
+      #key-hud { color: #b4cbb6; font-weight: 600; }
+      .inventory:empty { display: none; }
+      @media (max-width: 560px) {
+        .viewport-map { width: 76px; max-width: 31%; padding: 2px !important; }
+        .first-person-view { padding: 2px; }
+      }
+</style>
+  </head>
+
+  <body>
+    <main class="game-shell">
+      <header class="title-block">
+        <h1>ASCII Horde</h1>
+        <div id="build" class="build">Build: canvas-raycasting-preview-11</div>
+      </header>
+
+      <section class="hud" aria-live="polite">
+        <span>Floor: <strong id="level">1</strong></span>
+        <span>Condition: <strong id="condition" class="condition healthy">Healthy</strong></span>
+        <span>Mode: <strong id="mode" class="moving">Move</strong></span>
+        <span>Ammo: <strong id="shots">6/12</strong></span>
+        <span id="key-hud" hidden></span>
+        <span>Turn: <strong id="turn">0</strong></span>
+        <span>Kills: <strong id="kills">0</strong></span>
+        <span>Enemies: <strong id="enemy-count">0</strong></span>
+      </section>
+
+      <section class="view-wrap" aria-label="First-person dungeon view">
+        <div class="viewport-stack">
+          <div id="first-person-view" class="first-person-view"></div>
+          <div id="mini-map" class="mini-map viewport-map" aria-label="Memory map"></div>
+        </div>
+
+        <div id="chest-overlay" class="overlay hidden" aria-live="assertive">
+          <div class="modal">
+            <p id="chest-text">Found: Item</p>
+            <div class="modal-actions">
+              <button id="take-btn" class="btn" type="button">Take</button>
+              <button id="leave-btn" class="btn" type="button">Leave</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="level-overlay" class="overlay hidden" aria-live="assertive">
+          <div class="modal">
+            <h2>Level Complete</h2>
+            <p id="level-text">You escaped.</p>
+            <div class="modal-actions">
+              <button id="next-level-btn" class="btn" type="button">Next Level</button>
+              <button id="level-restart-btn" class="btn" type="button">Restart</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="message-log" class="message-log" aria-live="polite"></section>
+
+      <section id="inventory" class="inventory" aria-live="polite"></section>
+
+      <section class="controls" aria-label="Controls">
+        <div class="dpad" role="group" aria-label="Directional pad">
+          <button data-dir="up" class="btn dir up" type="button">Forward</button>
+          <button data-dir="left" class="btn dir left" type="button">Turn L</button>
+          <button data-dir="right" class="btn dir right" type="button">Turn R</button>
+          <button data-dir="down" class="btn dir down" type="button">Back</button>
+          <button data-dir="strafe-left" class="btn strafe-control" type="button">Strafe L</button>
+          <button data-dir="strafe-right" class="btn strafe-control" type="button">Strafe R</button>
+        </div>
+
+        <div class="actions">
+          <button id="target-btn" class="btn" type="button">Target</button>
+          <button id="aim-btn" class="btn primary-action" type="button">Aim</button>
+          <button id="fire-btn" class="btn primary-action" type="button">Fire</button>
+          <button id="wait-btn" class="btn" type="button">Wait</button>
+          <button id="reload-btn" class="btn" type="button">Reload</button>
+          <button id="restart-btn" class="btn danger-action" type="button">Restart</button>
+        </div>
+      </section>
+
+      <section class="legend">
+        <p>
+          W/S move · A/D turn · Q/E strafe ·
+          <strong>H/h</strong> enemy · <strong>D</strong> door ·
+          <strong>C</strong> chest · <strong>E</strong> exit
+        </p>
+      </section>
+    </main>
+
+    <script>
+/* Experimental flat-shaded grid raycaster for ASCII Horde.
+   Rendering only: no movement, combat, map, or inventory mutations. */
+(function () {
+  "use strict";
+  const W = 320, H = 180, FOV = Math.PI * 0.46;
+  const MAX_DISTANCE = 12;
+  const WALL_HEIGHT = 1.35;
+  // Deliberately subdued, room-specific wall/ceiling/floor tints.
+  const PALETTES = [
+    [1.00,1.02,1.00], [1.01,0.98,0.88], [0.88,0.98,1.08],
+    [0.95,1.04,0.92], [1.07,0.94,0.96], [0.99,0.96,1.08]
+  ];
+  function paletteAt(state,x,y) {
+    let best=-1, distance=Infinity;
+    for(let i=0;i<state.rooms.length;i++) {
+      const room=state.rooms[i];
+      if(x>=room.x&&x<room.x+room.w&&y>=room.y&&y<room.y+room.h) {
+        best=i;break;
+      }
+      const nearX=Math.max(room.x,Math.min(x,room.x+room.w-1));
+      const nearY=Math.max(room.y,Math.min(y,room.y+room.h-1));
+      const d=(nearX-x)*(nearX-x)+(nearY-y)*(nearY-y);
+      if(d<distance){distance=d;best=i;}
+    }
+    if(best<0)return PALETTES[0];
+    const room=state.rooms[best];
+    const hash=(room.x*17+room.y*31+room.w*7+room.h*13+best*11);
+    return PALETTES[Math.abs(hash)%PALETTES.length];
+  }
+  const COLORS = { red:"#ff6666", blue:"#66aaff", yellow:"#ffee66", green:"#77ff77" };
+  const DIR = { north:[0,-1], east:[1,0], south:[0,1], west:[-1,0] };
+  let canvas, ctx;
+  let decorationsFor = null, decorations = null;
+  function hash(x){ x=(x^61)^(x>>>16); x=Math.imul(x,9); x=x^(x>>>4); x=Math.imul(x,0x27d4eb2d); return (x^(x>>>15))>>>0; }
+  function randFrom(seed){ let n=seed>>>0; return ()=>{n=(Math.imul(n,1664525)+1013904223)>>>0; return n/4294967296;}; }
+  function makeDecorations(state){
+    if(decorationsFor===state.rooms && decorations)return decorations;
+    decorationsFor=state.rooms;
+    const props=[],posters=[];
+    const rooms=state.rooms;
+    let seed=hash(rooms.reduce((a,r,i)=>a+Math.imul(r.x+17*r.y+r.w*11+r.h*7,i+1),57));
+    const rnd=randFrom(seed);
+    for(let i=0;i<rooms.length;i++){
+      const r=rooms[i];
+      if(r.w<4||r.h<4||rnd()<.48)continue;
+      const number=rnd()<.24?2:1;
+      for(let j=0;j<number;j++){
+        const x=r.x+1+Math.floor(rnd()*(r.w-2));
+        const y=r.y+1+Math.floor(rnd()*(r.h-2));
+        if((x===state.player.x&&y===state.player.y)||state.walls.has(x+","+y)||
+          state.doors.some(d=>d.x===x&&d.y===y)||
+          state.chests.some(c=>c.x===x&&c.y===y)||
+          (state.exit.x===x&&state.exit.y===y))continue;
+        props.push({x,y,type:Math.floor(rnd()*4),seed:Math.floor(rnd()*1e9),room:i});
+      }
+    }
+    // A scarce feature: 0-2 inscriptions for an entire dungeon, not per room.
+    const count=rnd()<.32?0:rnd()<.70?1:2;
+    const nouns=["THE LAST ROOM","YOUR REFLECTION","THE HALLWAY","THE SECOND DOOR","THE EMPTY CHAIR","THE LIGHT"];
+    const verbs=["REMEMBERS","IS WAITING FOR","HAS FORGOTTEN","CAN HEAR","DOES NOT RECOGNIZE","WILL REPLACE"];
+    const objects=["YOU","THE OTHERS","THIS PLACE","ITS NAME","THE MORNING","THE EXIT"];
+    const used=new Set();
+    for(let j=0;j<count;j++){
+      for(let tries=0;tries<40;tries++){
+        const i=Math.floor(rnd()*rooms.length),room=rooms[i];
+        if(used.has(i)||room.w<4||room.h<4)continue;
+        const side=Math.floor(rnd()*4);
+        const x=side===0?room.x:side===1?room.x+room.w-1:room.x+1+Math.floor(rnd()*(room.w-2));
+        const y=side===2?room.y:side===3?room.y+room.h-1:room.y+1+Math.floor(rnd()*(room.h-2));
+        // Find actual boundary walls at a fixed position.
+        const wallX=side===0?room.x-1:side===1?room.x+room.w:x;
+        const wallY=side===2?room.y-1:side===3?room.y+room.h:y;
+        if(!state.walls.has(wallX+","+wallY))continue;
+        used.add(i);
+        posters.push({x:wallX,y:wallY,side,text:nouns[Math.floor(rnd()*nouns.length)]+" "+verbs[Math.floor(rnd()*verbs.length)]+" "+objects[Math.floor(rnd()*objects.length)]+".",style:rnd()<.55?"poster":"graffiti"});
+        break;
+      }
+    }
+    return decorations={props,posters};
+  }
+  let feedbackText = "", feedbackAt = -1, damageAt = -1;
+  function feedback(text){feedbackText=text;feedbackAt=performance.now();}
+  function damage(){damageAt=performance.now();feedback("HIT");}
+  function isPropAt(state,x,y){return makeDecorations(state).props.some(p=>p.x===x&&p.y===y); }
+  let recoilStart = -1;
+  let animationQueued = false;
+  let currentState = null, currentHost = null;
+  const RECOIL_MS = 260;
+  function recoil() {
+    recoilStart = performance.now();
+  }
+
+  function setup(host) {
+    if (!canvas || canvas.parentElement !== host) {
+      host.replaceChildren();
+      canvas = document.createElement("canvas");
+      canvas.width = W;
+      canvas.height = H;
+      canvas.className = "raycast-canvas";
+      canvas.setAttribute("role", "img");
+      canvas.setAttribute("aria-label", "First-person dungeon");
+      host.appendChild(canvas);
+      ctx = canvas.getContext("2d", { alpha: false });
+    }
+    return !!ctx;
+  }
+
+  function cast(state, ox, oy, dx, dy) {
+    let x = Math.floor(ox), y = Math.floor(oy);
+    const ddx = dx === 0 ? Infinity : Math.abs(1/dx);
+    const ddy = dy === 0 ? Infinity : Math.abs(1/dy);
+    const sx = dx < 0 ? -1 : 1, sy = dy < 0 ? -1 : 1;
+    let sideX = (dx < 0 ? ox-x : x+1-ox)*ddx;
+    let sideY = (dy < 0 ? oy-y : y+1-oy)*ddy;
+    let dist = MAX_DISTANCE, side = 0, hit = false, kind = "wall", door = null;
+    for (let i=0;i<32;i++) {
+      if (sideX < sideY) {
+        dist = sideX; sideX += ddx; x += sx; side = 0;
+      } else {
+        dist = sideY; sideY += ddy; y += sy; side = 1;
+      }
+      if (dist > MAX_DISTANCE) break;
+      door = state.doors.find(d => d.x === x && d.y === y);
+      if (door) { hit = true; kind = "door"; break; }
+      if (state.exit.x === x && state.exit.y === y) { hit = true; kind = "exit"; break; }
+      if (x<0 || y<0 || x>=72 || y>=40 || state.walls.has(x+","+y)) {
+        hit = true;
+        break;
+      }
+    }
+    return {dist:Math.max(0.06,dist),side,hit,x,y,kind,door};
+  }
+
+  function drawSurfaces(state,forward,right,projection,ox,oy) {
+    // Row-based floor/ceiling casting: every seam belongs to a world grid line.
+    const frame=ctx.createImageData(W,H), pixels=frame.data;
+    for(let y=0;y<H;y++) {
+      const ceiling=y<H/2;
+      const offset=Math.abs(y-H/2+.5);
+      const rowDist=(projection*WALL_HEIGHT*.5)/Math.max(.5,offset);
+      for(let x=0;x<W;x++) {
+        const cameraX=(x+.5-W/2)/projection;
+        const wx=ox+rowDist*(forward[0]+right[0]*cameraX);
+        const wy=oy+rowDist*(forward[1]+right[1]*cameraX);
+        const tileX=Math.floor(wx),tileY=Math.floor(wy);
+        const fx=wx-tileX,fy=wy-tileY;
+        const seam=Math.min(fx,fy,1-fx,1-fy);
+        const checker=(tileX+tileY)&1;
+        const fog=Math.max(.16,1-rowDist/(MAX_DISTANCE+1));
+        const base=ceiling?64:(checker?29:41);
+        const tint=paletteAt(state,tileX,tileY);
+        const seamEffect=!ceiling && seam < Math.min(.022,.003*rowDist) ? 6 : 0;
+        const shade=Math.round((base+seamEffect)*fog+5);
+        const i=(y*W+x)*4;
+        pixels[i]=Math.min(255,Math.round(shade*tint[0]));
+        pixels[i+1]=Math.min(255,Math.round((shade+1)*tint[1]));
+        pixels[i+2]=Math.min(255,Math.round(shade*tint[2]));
+        pixels[i+3]=255;
+      }
+    }
+    ctx.putImageData(frame,0,0);
+  }
+
+  function drawWalls(state, forward, right) {
+    const ox=state.player.x+.5,oy=state.player.y+.5;
+    const projection=W/(2*Math.tan(FOV/2));
+    const depths=new Float32Array(W);
+    drawSurfaces(state,forward,right,projection,ox,oy);
+    for(let col=0;col<W;col++) {
+      const cameraX=(col+.5-W/2)/projection;
+      const dx=forward[0]+right[0]*cameraX;
+      const dy=forward[1]+right[1]*cameraX;
+      const hit=cast(state,ox,oy,dx,dy);
+      depths[col]=hit.dist;
+      if(!hit.hit)continue;
+      const height=Math.min(H*4,projection*WALL_HEIGHT/hit.dist);
+      const y0=Math.round((H-height)/2),y1=Math.round((H+height)/2);
+      const fog=Math.max(.25,1-hit.dist/(MAX_DISTANCE+2));
+      const tone=Math.round((hit.side===0?95:76)*fog+11);
+      const tint=paletteAt(state,hit.x,hit.y);
+      ctx.fillStyle="rgb("+Math.round(tone*tint[0])+","+Math.round(tone*tint[1])+","+Math.round(tone*tint[2])+")";
+      ctx.fillRect(col,y0,1,y1-y0);
+      // Horizontal block courses remain quiet so doors and enemies dominate.
+      if(hit.kind==="wall" && height>12) {
+        ctx.fillStyle="rgba(170,180,170,"+(0.10*fog)+")";
+        for(let course=1;course<4;course++) {
+          const seamY=Math.round(y0+height*course/4);
+          if(seamY>=0 && seamY<H) ctx.fillRect(col,seamY,1,1);
+        }
+      }
+      const hitCoord=hit.side===0?oy+hit.dist*dy:ox+hit.dist*dx;
+      const fraction=hitCoord-Math.floor(hitCoord);
+      const edge=Math.min(fraction,1-fraction);
+      if(edge<.008) {
+        ctx.fillStyle="rgba(150,155,150,"+(.19*fog)+")";
+        ctx.fillRect(col,y0,1,y1-y0);
+      }
+      if(hit.kind==="door"||hit.kind==="exit") {
+        const color=hit.kind==="exit"?(COLORS[state.exit.color]||"#bbb")
+          :hit.door.locked?(COLORS[hit.door.color]||"#bbb"):"#e5e5e5";
+        const frameL=.21, frameR=.79, lintel=.14;
+        const isOpening=fraction>frameL&&fraction<frameR;
+        const top=y0+height*lintel;
+        if(isOpening) {
+          const locked=hit.kind==="exit"||hit.door.locked;
+          // Dark doorway cavity, closed panel when locked; open passage when unlocked.
+          ctx.fillStyle=locked?"#343936":"#101713";
+          ctx.fillRect(col,top,1,y1-top);
+          const border=(fraction<frameL+.028||fraction>frameR-.028);
+          if(border) {
+            ctx.fillStyle=color;
+            ctx.fillRect(col,top,1,y1-top);
+          }
+          if(locked&&Math.abs(fraction-.64)<.013) {
+            ctx.fillStyle=color;
+            ctx.fillRect(col,top+height*.42,1,Math.max(1,height*.045));
+          }
+        }
+        // Real jambs and lintel aligned with the same wall's projected surface.
+        if(Math.abs(fraction-frameL)<.014||Math.abs(fraction-frameR)<.014) {
+          ctx.fillStyle=color;
+          ctx.fillRect(col,top,1,y1-top);
+        }
+        if(isOpening) {
+          ctx.fillStyle=color;
+          ctx.fillRect(col,top,1,Math.max(1,2.2/hit.dist));
+        }
+      }
+    }
+    return {depths,projection,ox,oy};
+  }
+
+  function drawSprite(state, obj, forward, right, data) {
+    const vx=obj.x+0.5-data.ox, vy=obj.y+0.5-data.oy;
+    const depth=vx*forward[0]+vy*forward[1];
+    const lateral=vx*right[0]+vy*right[1];
+    if(depth<=0.15 || depth>MAX_DISTANCE) return;
+    const sx=W/2+data.projection*lateral/depth;
+    const size=data.projection/depth;
+    const w=size*(obj.type==="enemy" ? .38 : obj.type==="chest" ? .50 : .18);
+    const h=size*(obj.type==="enemy" ? .72 : obj.type==="chest" ? .31 : .17);
+    const floor=H/2+size*WALL_HEIGHT*.5;
+    const left=Math.round(sx-w/2), top=Math.round(floor-h), rightEdge=Math.ceil(sx+w/2);
+    if(rightEdge<0||left>=W) return;
+
+    // Clip each object against the actual wall-depth buffer, column by column.
+    ctx.save();
+    ctx.beginPath();
+    let visibleColumns=0;
+    for(let x=Math.max(0,left);x<Math.min(W,rightEdge);x++) {
+      if(depth<data.depths[x]+.05) {
+        ctx.rect(x,Math.max(0,top-4),1,Math.min(H,Math.ceil(floor+3))-Math.max(0,top-4));
+        visibleColumns++;
+      }
+    }
+    if(!visibleColumns){ctx.restore();return;}
+    ctx.clip();
+    // Opaque solid silhouettes and ground contact shadow anchors every pickup or enemy to the floor.
+    ctx.fillStyle="#050705";
+    ctx.fillRect(left-Math.max(2,w*.18),Math.round(floor)-3,Math.max(3,w*1.36),Math.max(2,4/depth));
+    ctx.strokeStyle="rgba(0,0,0,.65)";
+    ctx.lineWidth=Math.max(1,1.6/depth);
+    if(obj.type==="chest") {
+      const col=obj.locked?(COLORS[obj.color]||"#aaa"):"#b3b3b3";
+      ctx.fillStyle="#383838";ctx.fillRect(left,top,w,h);
+      ctx.fillStyle="#555555";ctx.fillRect(left,top,w,Math.max(2,h*.24));
+      ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,2/depth);ctx.strokeRect(left,top,w,h);
+      ctx.fillStyle=col;ctx.fillRect(sx-1,top+h*.40,2,Math.max(2,h*.28));
+    } else if(obj.type==="ammo") {
+      ctx.fillStyle="#9bdcff";ctx.fillRect(left,top,w,h);
+      ctx.fillStyle="#35647a";ctx.fillRect(left,top,w,Math.max(1,h*.24));
+    } else if(obj.type==="enemy") {
+      // Stable pseudo-random corruption derived from each entity, never from frame time.
+      const id=(obj.enemy.id===undefined?0:Number(obj.enemy.id)||0);
+      let seed=(Math.imul(obj.x+1,73856093)^Math.imul(obj.y+1,19349663)^Math.imul(id+1,83492791))>>>0;
+      const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+      const px=Math.max(1,w/11),py=Math.max(1,h/19);
+      const variant=Math.floor(rand()*4);
+      const body=["#a0abb1","#9ea8a0","#b9a3b3","#b3b09a"][variant];
+      const accent=["#d6dece","#d6c9b2","#c4d5e7","#c8ddc8"][variant];
+      const dark="#222a2d";
+      // Coherent, upright, humanoid mass first; broken pixels deform its contour.
+      ctx.fillStyle=dark;ctx.fillRect(left+w*.27,top+h*.21,w*.48,h*.58);
+      ctx.fillStyle=body;
+      ctx.fillRect(left+w*.32,top+h*.21,w*.36,h*.55);
+      ctx.fillRect(left+w*.36,top+h*.04,w*.28,h*.25);
+      ctx.fillRect(left+w*.16,top+h*.30,w*.18,h*.37);
+      ctx.fillRect(left+w*.66,top+h*.30,w*.18,h*.37);
+      ctx.fillRect(left+w*.34,top+h*.72,w*.15,h*.27);
+      ctx.fillRect(left+w*.52,top+h*.72,w*.15,h*.27);
+      // Different silhouettes share a recognizable corrupted shape language.
+      for(let j=0;j<23;j++){
+        const bx=Math.floor(rand()*11),by=Math.floor(rand()*17);
+        const blockW=px*(1+Math.floor(rand()*3)),blockH=py*(1+Math.floor(rand()*3));
+        ctx.fillStyle=rand()<.26?dark:rand()<.52?accent:body;
+        ctx.fillRect(left+bx*px,top+by*py,blockW,blockH);
+      }
+      // An invariant bright fault line makes the entire species identifiable.
+      ctx.fillStyle="#dce6e4";
+      ctx.fillRect(left+w*.42,top+h*.10,Math.max(1,w*.13),Math.max(1,h*.05));
+      ctx.fillRect(left+w*.45,top+h*.18,Math.max(1,w*.07),Math.max(1,h*.34));
+      if(state.selectedTargetKey===obj.x+","+obj.y){
+        ctx.strokeStyle="#fff";ctx.lineWidth=Math.max(1,2/depth);
+        ctx.strokeRect(left-2,top-2,w+4,h+4);
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawHologram(obj,forward,right,data){
+    const dx=obj.x+.5-data.ox,dy=obj.y+.5-data.oy;
+    const depth=dx*forward[0]+dy*forward[1],lateral=dx*right[0]+dy*right[1];
+    if(depth<.25||depth>MAX_DISTANCE)return;
+    const size=data.projection/depth,sx=W/2+data.projection*lateral/depth;
+    const radius=size*.22,top=H/2+size*WALL_HEIGHT*.5-size*.61;
+    const x=Math.round(sx-radius),w=Math.max(2,radius*2),h=Math.max(3,size*.59);
+    const col=Math.floor(sx);
+    if(col<0||col>=W||depth>data.depths[col]+.03)return;
+    ctx.save();
+    ctx.beginPath();
+    for(let xx=Math.max(0,x);xx<Math.min(W,x+w);xx++)if(depth<data.depths[xx]+.04)ctx.rect(xx,0,1,H);
+    ctx.clip();
+    const tint=PALETTES[Math.abs(obj.room)%PALETTES.length];
+    const rgb=(v)=>"rgba("+Math.round(v*tint[0])+","+Math.round((v+14)*tint[1])+","+Math.round((v+20)*tint[2])+",";
+    ctx.fillStyle=rgb(130)+".95)";
+    ctx.strokeStyle=rgb(190)+".95)";
+    ctx.lineWidth=1;
+    const base=top+h;
+    ctx.beginPath();ctx.ellipse(sx,base,w*.65,Math.max(1,3/depth),0,0,Math.PI*2);ctx.stroke();
+    const type=obj.type;
+    ctx.beginPath();
+    if(type===0){ // cube / rectangular prism
+      ctx.rect(x,top+h*.22,w*.74,h*.72);ctx.moveTo(x,top+h*.22);ctx.lineTo(x+w*.24,top);ctx.lineTo(x+w,top);ctx.lineTo(x+w*.74,top+h*.22);
+      ctx.moveTo(x+w*.74,top+h*.22);ctx.lineTo(x+w,top);
+    }else if(type===1){ // monolith
+      ctx.rect(x+w*.27,top,w*.43,h);
+      ctx.moveTo(x+w*.27,top);ctx.lineTo(x+w*.44,top-h*.08);ctx.lineTo(x+w*.87,top-h*.08);ctx.lineTo(x+w*.70,top);
+    }else if(type===2){ // tapered obelisk
+      ctx.moveTo(sx,top-h*.09);ctx.lineTo(x+w*.72,top+h*.28);ctx.lineTo(x+w*.72,base);ctx.lineTo(x+w*.28,base);ctx.lineTo(x+w*.28,top+h*.28);ctx.closePath();
+    }else{ // wedge
+      ctx.moveTo(x,base);ctx.lineTo(x+w*.32,top+h*.45);ctx.lineTo(x+w,top+h*.45);ctx.lineTo(x+w*.76,base);ctx.closePath();
+      ctx.moveTo(x+w*.32,top+h*.45);ctx.lineTo(x+w*.55,top+h*.21);ctx.lineTo(x+w,top+h*.45);
+    }
+    ctx.fill();ctx.stroke();
+    ctx.restore();
+  }
+  function drawPosters(state,items,forward,right,data){
+    for(const p of items){
+      const face=p.side===0?[1,0]:p.side===1?[-1,0]:p.side===2?[0,1]:[0,-1];
+      const wx=p.x+.5+face[0]*.501,wy=p.y+.5+face[1]*.501;
+      const dx=wx-data.ox,dy=wy-data.oy;
+      const depth=dx*forward[0]+dy*forward[1],lateral=dx*right[0]+dy*right[1];
+      if(depth<.35||depth>MAX_DISTANCE||dx*face[0]+dy*face[1]>=0)continue;
+      // Posters are small wall-mounted plaques, not sprites that fill the camera.
+      // Cap their screen footprint near a wall while preserving natural distant scaling.
+      const sx=W/2+data.projection*lateral/depth,scale=data.projection/depth;
+      const width=Math.min(W*.46,scale*.44);
+      const height=Math.min(H*.20,scale*.18);
+      const left=Math.round(sx-width/2),top=Math.round(H/2-scale*.08-height/2);
+      if(left+width<0||left>=W)continue;
+      ctx.save();ctx.beginPath();
+      for(let col=Math.max(0,Math.floor(left));col<Math.min(W,Math.ceil(left+width));col++)
+        if(depth<=data.depths[col]+.10)ctx.rect(col,0,1,H);
+      ctx.clip();
+      ctx.fillStyle=p.style==="poster"?"#aeb3aa":"#687a70";
+      ctx.fillRect(left,top,width,height);
+      if(p.style==="poster"){ctx.strokeStyle="#272d2a";ctx.lineWidth=1;ctx.strokeRect(left,top,width,height);}
+      ctx.fillStyle=p.style==="poster"?"#171d1b":"#e5e9d9";
+      ctx.textAlign="center";ctx.textBaseline="middle";
+      const words=p.text.split(" "),lines=[],maxChars=22;
+      let line="";
+      for(const word of words){
+        if((line+" "+word).trim().length>maxChars && line){lines.push(line);line=word;}
+        else line=(line+" "+word).trim();
+      }
+      if(line)lines.push(line);
+      // Text scales with its actual plaque, rather than endlessly enlarging at close range.
+      const fontSize=Math.max(2,Math.min(7,height/(lines.length*1.35)));
+      ctx.font="bold "+fontSize+"px monospace";
+      const lineHeight=fontSize*1.12;
+      lines.forEach((t,i)=>ctx.fillText(t,sx,top+height/2+(i-(lines.length-1)/2)*lineHeight,width*.91));
+      ctx.restore();
+    }
+  }
+  function drawWeapon(state) {
+    const aiming=Boolean(state.aiming);
+    const elapsed=performance.now()-recoilStart;
+    const firing=elapsed>=0&&elapsed<RECOIL_MS;
+    const phase=firing?elapsed/RECOIL_MS:1;
+    const kick=firing?Math.sin(Math.PI*phase)*(1-phase)*12:0;
+    // Kept intentionally blocky: silhouette, hand, and an uncomplicated muzzle.
+    const x=aiming?W*.50:W*.79;
+    const y=aiming?H-12:H+17;
+    ctx.save();
+    ctx.translate(x+(firing?kick*.28:0),y+kick);
+    ctx.rotate((aiming?0:.22)+(firing?-.10*Math.sin(Math.PI*phase):0));
+    ctx.lineJoin="miter";
+    ctx.lineWidth=2;
+    ctx.strokeStyle="#111714";
+    // Hand / wrist, rendered as a solid foreground shape.
+    ctx.fillStyle="#827769";
+    ctx.beginPath();
+    ctx.moveTo(12,5);ctx.lineTo(32,7);ctx.lineTo(47,30);
+    ctx.lineTo(12,30);ctx.lineTo(3,17);ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle="#a0927e";
+    ctx.fillRect(8,-3,22,15);
+    ctx.strokeRect(8,-3,22,15);
+    // Rectangular grip and slide, with a sharply outlined barrel.
+    ctx.fillStyle="#2d3433";
+    ctx.beginPath();
+    ctx.moveTo(-9,-12);ctx.lineTo(17,-12);ctx.lineTo(15,14);
+    ctx.lineTo(2,20);ctx.lineTo(-8,9);ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle="#414b4a";
+    ctx.fillRect(-14,-51,27,43);
+    ctx.strokeRect(-14,-51,27,43);
+    ctx.fillStyle="#667271";
+    ctx.fillRect(-14,-51,27,5);
+    ctx.fillStyle="#171e1d";
+    ctx.fillRect(-5,-56,10,6);
+    ctx.fillStyle="#202a28";
+    ctx.fillRect(-6,-49,12,31);
+    ctx.strokeStyle="#91a09b";
+    ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(-13,-44);ctx.lineTo(-13,-13);ctx.stroke();
+    if(firing&&phase<.26) {
+      const flare=1-phase/.26;
+      ctx.fillStyle="#e7d49a";
+      ctx.beginPath();
+      ctx.moveTo(0,-59);ctx.lineTo(-8*flare,-65-14*flare);
+      ctx.lineTo(0,-69-20*flare);ctx.lineTo(8*flare,-65-14*flare);
+      ctx.closePath();ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function render(state, host) {
+    if(!setup(host)) return;
+    const forward=DIR[state.player.dir]||DIR.north;
+    const right=[-forward[1],forward[0]];
+    const wallData=drawWalls(state,forward,right);
+    const objects=[];
+    const isVisible=(x,y)=>state.visible.has(x+","+y);
+    state.chests.forEach(c=>{if(isVisible(c.x,c.y))objects.push({type:"chest",x:c.x,y:c.y,locked:c.locked,color:c.lockColor});});
+    state.pickups.forEach(p=>{if(isVisible(p.x,p.y))objects.push({type:"ammo",x:p.x,y:p.y});});
+    state.enemies.forEach(e=>{if(isVisible(e.x,e.y))objects.push({type:"enemy",x:e.x,y:e.y,enemy:e});});
+    objects.sort((a,b)=>(b.x-state.player.x)**2+(b.y-state.player.y)**2-((a.x-state.player.x)**2+(a.y-state.player.y)**2));
+    const decor=makeDecorations(state);
+    decor.props.forEach(p=>drawHologram(p,forward,right,wallData));
+    drawPosters(state,decor.posters,forward,right,wallData);
+    objects.forEach(obj=>drawSprite(state,obj,forward,right,wallData));
+    drawWeapon(state);
+    const now=performance.now();
+    const damageAge=now-damageAt, feedbackAge=now-feedbackAt;
+    if(damageAge>=0&&damageAge<290){
+      const fade=1-damageAge/290;
+      ctx.fillStyle="rgba(168,48,68,"+(fade*.25)+")";
+      ctx.fillRect(0,0,W,H);
+      // Deliberately sparse misaligned horizontal bands rather than flashing full-screen.
+      ctx.fillStyle="rgba(216,229,222,"+(fade*.28)+")";
+      for(let i=0;i<5;i++){
+        const y=(Math.imul(i+7,37)+Math.floor(damageAge/35)*17)%H;
+        ctx.fillRect((i*61)%W,y,55,1+(i%2));
+      }
+    }
+    if(feedbackAge>=0&&feedbackAge<560){
+      ctx.save();
+      ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.font="bold 17px monospace";
+      ctx.fillStyle="rgba(0,0,0,.7)";ctx.fillRect(W/2-49,42,98,28);
+      ctx.fillStyle=feedbackText==="MISS"?"#d2d3c7":feedbackText==="HIT"?"#ff8585":"#d8eee0";
+      ctx.fillText(feedbackText,W/2,56);
+      ctx.restore();
+    }
+    currentState=state;
+    currentHost=host;
+    const elapsed=performance.now()-recoilStart;
+    if(((elapsed<RECOIL_MS && elapsed>=0)||(now-feedbackAt<560&&now-feedbackAt>=0)||(now-damageAt<290&&now-damageAt>=0)) && !animationQueued) {
+      animationQueued=true;
+      requestAnimationFrame(()=>{
+        animationQueued=false;
+        if(currentState&&currentHost)render(currentState,currentHost);
+      });
+    }
+  }
+  window.ASCIIHordeRaycaster={render,recoil,feedback,damage,isPropAt};
+})();
+
+</script>
+<script>
+const MAP_WIDTH = 72;
+const MAP_HEIGHT = 40;
+const MINI_WIDTH = 21;
+const MINI_HEIGHT = 11;
+const MAX_LOG_LINES = 4;
+const VIS_RADIUS = 8;
+const FIRST_PERSON_DEPTH = 5;
+const SIDE_VIEW_TILES = 3;
+
+const BASE_MAX_HP = 10;
+const BASE_CLIP_SIZE = 6;
+const BASE_RESERVE_AMMO = 12;
+const BASE_SHOT_DAMAGE = 2;
+const ENEMY_MAX_HP = 5;
+const ENEMY_DAMAGE = 1;
+const BASE_ENEMY_CAP = 7;
+const MISS_CHANCE = 0.08;
+
+const COLORS = ["red", "blue", "yellow", "green"];
+const FACINGS = ["north", "east", "south", "west"];
+
+const DIR_VECTORS = {
+  north: { x: 0, y: -1 },
+  east: { x: 1, y: 0 },
+  south: { x: 0, y: 1 },
+  west: { x: -1, y: 0 }
+};
+
+const ITEM_POOL = ["Health Kit", "Body Armor", "Ammo Box", "Extended Magazine", "Improved Barrel", "Map"];
+
+const el = {};
+let game;
+
+const key = (x, y) => `${x},${y}`;
+const samePos = (a, b) => a.x === b.x && a.y === b.y;
+const inBounds = (x, y) => x >= 0 && y >= 0 && x < MAP_WIDTH && y < MAP_HEIGHT;
+const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+const titleColor = (color) => color.charAt(0).toUpperCase() + color.slice(1);
+
+function wireElements() {
+  Object.assign(el, {
+    level: document.getElementById("level"),
+    condition: document.getElementById("condition"),
+    mode: document.getElementById("mode"),
+    shots: document.getElementById("shots"),
+    turn: document.getElementById("turn"),
+    kills: document.getElementById("kills"),
+    enemyCount: document.getElementById("enemy-count"),
+    log: document.getElementById("message-log"),
+    inventory: document.getElementById("inventory"),
+    firstPersonView: document.getElementById("first-person-view"),
+    miniMap: document.getElementById("mini-map"),
+    chestOverlay: document.getElementById("chest-overlay"),
+    chestText: document.getElementById("chest-text"),
+    takeBtn: document.getElementById("take-btn"),
+    leaveBtn: document.getElementById("leave-btn"),
+    levelOverlay: document.getElementById("level-overlay"),
+    levelText: document.getElementById("level-text"),
+    nextLevelBtn: document.getElementById("next-level-btn"),
+    levelRestartBtn: document.getElementById("level-restart-btn"),
+    dpad: document.querySelector(".dpad"),
+    targetBtn: document.getElementById("target-btn"),
+    aimBtn: document.getElementById("aim-btn"),
+    fireBtn: document.getElementById("fire-btn"),
+    waitBtn: document.getElementById("wait-btn"),
+    reloadBtn: document.getElementById("reload-btn"),
+    restartBtn: document.getElementById("restart-btn")
+  });
+}
+
+function hasRequiredElements() {
+  return Object.values(el).every(Boolean);
+}
+
+function showBootError(message) {
+  const text = `Startup error: ${message}`;
+  if (el.firstPersonView) el.firstPersonView.textContent = "The game failed to launch.";
+  if (el.log) el.log.innerHTML = `<p>${escapeHtml(text)}</p>`;
+  console.error(text);
+}
+
+function newGame() {
+  startLevel({
+    level: 1,
+    hp: BASE_MAX_HP,
+    maxHp: BASE_MAX_HP,
+    shots: BASE_CLIP_SIZE,
+    maxShots: BASE_CLIP_SIZE,
+    reserveAmmo: BASE_RESERVE_AMMO,
+    shotDamage: BASE_SHOT_DAMAGE,
+    inventory: [],
+    keys: [],
+    totalKills: 0
+  });
+}
+
+function startNextLevel() {
+  if (!game || !game.won) return;
+
+  startLevel({
+    level: game.level + 1,
+    hp: Math.min(game.player.maxHp, game.player.hp + 2),
+    maxHp: game.player.maxHp,
+    shots: game.shots,
+    maxShots: game.maxShots,
+    reserveAmmo: game.reserveAmmo + 3,
+    shotDamage: game.shotDamage,
+    inventory: game.inventory,
+    keys: [],
+    totalKills: game.totalKills
+  });
+}
+
+function startLevel(carry) {
+  const map = generateDungeon();
+
+  game = {
+    level: carry.level,
+    totalKills: carry.totalKills || 0,
+    walls: map.walls,
+    floors: map.floors,
+    rooms: map.rooms,
+    doors: map.doors,
+    chests: map.chests,
+    pickups: [],
+    exit: map.exit,
+    visible: new Set(),
+    discovered: new Set(),
+    enemies: [],
+    inventory: carry.inventory.map((item) => ({ ...item })),
+    keys: [...new Set(carry.keys || [])],
+    pendingChest: null,
+    selectedTargetKey: null,
+    aiming: false,
+    player: {
+      x: map.start.x,
+      y: map.start.y,
+      dir: "north",
+      hp: carry.hp,
+      maxHp: carry.maxHp
+    },
+    shots: carry.shots,
+    maxShots: carry.maxShots,
+    reserveAmmo: carry.reserveAmmo,
+    shotDamage: carry.shotDamage,
+    mapFound: false,
+    turn: 0,
+    kills: 0,
+    over: false,
+    won: false,
+    logs: [`Floor ${carry.level}. Find a way out.`]
+  };
+
+  recalcVisibility();
+  spawnEnemies(startingEnemyCount());
+  recalcVisibility();
+  closeChestOverlay();
+  closeLevelOverlay();
+  ensureTargetValid(false);
+  render();
+}
+
+function generateDungeon() {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const walls = new Set();
+    const floors = new Set();
+
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      for (let x = 0; x < MAP_WIDTH; x++) walls.add(key(x, y));
+    }
+
+    const rooms = [];
+    const connections = [];
+    const firstRoom = {
+      x: randInt(28, 36),
+      y: randInt(15, 22),
+      w: randInt(6, 10),
+      h: randInt(4, 7)
+    };
+
+    finishRoom(firstRoom);
+    rooms.push(firstRoom);
+    carveRoom(firstRoom, walls, floors);
+
+    let failureStreak = 0;
+
+    while (rooms.length < 22 && failureStreak < 180) {
+      const made = tryAttachRoom(rooms, connections, walls, floors);
+      if (made) failureStreak = 0;
+      else failureStreak++;
+    }
+
+    if (rooms.length < 12) continue;
+
+    addExtraRoomOpenings(rooms, connections, walls, floors);
+
+    const startRoom = rooms[0];
+    const start = { x: startRoom.cx, y: startRoom.cy };
+    const exitRoom = farthestRoom(rooms, start);
+    const exit = carveEdgeExit(exitRoom, walls, floors);
+    const doors = placeDoorsFromConnections(connections, start, exit);
+    const chests = placeChests(rooms, doors, start, exit);
+
+    return { walls, floors, rooms, start, exit, doors, chests };
+  }
+
+  return fallbackDungeon();
+}
+
+function finishRoom(room) {
+  room.cx = room.x + Math.floor(room.w / 2);
+  room.cy = room.y + Math.floor(room.h / 2);
+}
+
+function tryAttachRoom(rooms, connections, walls, floors) {
+  const parentIndex = randInt(0, rooms.length - 1);
+  const parent = rooms[parentIndex];
+  const dir = ["left", "right", "up", "down"][randInt(0, 3)];
+  const w = randInt(5, 11);
+  const h = randInt(4, 7);
+
+  let x;
+  let y;
+
+  if (dir === "right") {
+    x = parent.x + parent.w + 1;
+    y = randInt(parent.y - h + 2, parent.y + parent.h - 2);
+  } else if (dir === "left") {
+    x = parent.x - w - 1;
+    y = randInt(parent.y - h + 2, parent.y + parent.h - 2);
+  } else if (dir === "down") {
+    x = randInt(parent.x - w + 2, parent.x + parent.w - 2);
+    y = parent.y + parent.h + 1;
+  } else {
+    x = randInt(parent.x - w + 2, parent.x + parent.w - 2);
+    y = parent.y - h - 1;
+  }
+
+  const room = { x, y, w, h };
+  finishRoom(room);
+
+  if (room.x < 2 || room.y < 2 || room.x + room.w >= MAP_WIDTH - 2 || room.y + room.h >= MAP_HEIGHT - 2) return false;
+  if (rooms.some((r) => rectanglesOverlap(room, r))) return false;
+
+  const connection = sharedOpening(parent, room, dir);
+  if (!connection) return false;
+
+  const childIndex = rooms.length;
+  rooms.push(room);
+  connections.push({ ...connection, parentIndex, childIndex });
+  carveRoom(room, walls, floors);
+  carveFloor(connection.x, connection.y, walls, floors);
+
+  return true;
+}
+
+function sharedOpening(parent, room, dir) {
+  if (dir === "right" || dir === "left") {
+    const top = Math.max(parent.y, room.y);
+    const bottom = Math.min(parent.y + parent.h - 1, room.y + room.h - 1);
+    if (bottom < top) return null;
+    const y = randInt(top, bottom);
+    const x = dir === "right" ? parent.x + parent.w : parent.x - 1;
+    return { x, y, color: randomColor(), locked: false };
+  }
+
+  const left = Math.max(parent.x, room.x);
+  const right = Math.min(parent.x + parent.w - 1, room.x + room.w - 1);
+  if (right < left) return null;
+  const x = randInt(left, right);
+  const y = dir === "down" ? parent.y + parent.h : parent.y - 1;
+  return { x, y, color: randomColor(), locked: false };
+}
+
+function rectanglesOverlap(a, b) {
+  return a.x <= b.x + b.w &&
+    a.x + a.w >= b.x &&
+    a.y <= b.y + b.h &&
+    a.y + a.h >= b.y;
+}
+
+function carveRoom(room, walls, floors) {
+  for (let y = room.y; y < room.y + room.h; y++) {
+    for (let x = room.x; x < room.x + room.w; x++) carveFloor(x, y, walls, floors);
+  }
+}
+
+function carveFloor(x, y, walls, floors) {
+  if (!inBounds(x, y)) return;
+  walls.delete(key(x, y));
+  floors.add(key(x, y));
+}
+
+function addExtraRoomOpenings(rooms, connections, walls, floors) {
+  for (let i = 0; i < rooms.length; i++) {
+    for (let j = i + 1; j < rooms.length; j++) {
+      if (Math.random() > 0.16) continue;
+      const opening = adjacentOpening(rooms[i], rooms[j]);
+      if (!opening) continue;
+      if (connections.some((c) => c.x === opening.x && c.y === opening.y)) continue;
+      carveFloor(opening.x, opening.y, walls, floors);
+      connections.push({ ...opening, parentIndex: i, childIndex: j, color: randomColor(), locked: false });
+    }
+  }
+}
+
+function adjacentOpening(a, b) {
+  if (a.x + a.w + 1 === b.x || b.x + b.w + 1 === a.x) {
+    const leftRoom = a.x < b.x ? a : b;
+    const rightRoom = a.x < b.x ? b : a;
+    const top = Math.max(leftRoom.y, rightRoom.y);
+    const bottom = Math.min(leftRoom.y + leftRoom.h - 1, rightRoom.y + rightRoom.h - 1);
+    if (bottom < top) return null;
+    return { x: leftRoom.x + leftRoom.w, y: randInt(top, bottom) };
+  }
+
+  if (a.y + a.h + 1 === b.y || b.y + b.h + 1 === a.y) {
+    const topRoom = a.y < b.y ? a : b;
+    const bottomRoom = a.y < b.y ? b : a;
+    const left = Math.max(topRoom.x, bottomRoom.x);
+    const right = Math.min(topRoom.x + topRoom.w - 1, bottomRoom.x + bottomRoom.w - 1);
+    if (right < left) return null;
+    return { x: randInt(left, right), y: topRoom.y + topRoom.h };
+  }
+
+  return null;
+}
+
+function farthestRoom(rooms, start) {
+  return rooms.reduce((best, room) => {
+    const bestDist = Math.abs(best.cx - start.x) + Math.abs(best.cy - start.y);
+    const roomDist = Math.abs(room.cx - start.x) + Math.abs(room.cy - start.y);
+    return roomDist > bestDist ? room : best;
+  }, rooms[0]);
+}
+
+function carveEdgeExit(room, walls, floors) {
+  const distances = [
+    { side: "left", value: room.cx },
+    { side: "right", value: MAP_WIDTH - 1 - room.cx },
+    { side: "top", value: room.cy },
+    { side: "bottom", value: MAP_HEIGHT - 1 - room.cy }
+  ].sort((a, b) => a.value - b.value);
+
+  const side = distances[0].side;
+  let exit;
+
+  if (side === "left") {
+    const y = clamp(room.cy, 1, MAP_HEIGHT - 2);
+    for (let x = room.x; x >= 0; x--) carveFloor(x, y, walls, floors);
+    exit = { x: 0, y, color: randomColor() };
+  } else if (side === "right") {
+    const y = clamp(room.cy, 1, MAP_HEIGHT - 2);
+    for (let x = room.x + room.w - 1; x < MAP_WIDTH; x++) carveFloor(x, y, walls, floors);
+    exit = { x: MAP_WIDTH - 1, y, color: randomColor() };
+  } else if (side === "top") {
+    const x = clamp(room.cx, 1, MAP_WIDTH - 2);
+    for (let y = room.y; y >= 0; y--) carveFloor(x, y, walls, floors);
+    exit = { x, y: 0, color: randomColor() };
+  } else {
+    const x = clamp(room.cx, 1, MAP_WIDTH - 2);
+    for (let y = room.y + room.h - 1; y < MAP_HEIGHT; y++) carveFloor(x, y, walls, floors);
+    exit = { x, y: MAP_HEIGHT - 1, color: randomColor() };
+  }
+
+  return exit;
+}
+
+function placeDoorsFromConnections(connections, start, exit) {
+  const doors = [];
+  const candidates = shuffle([...connections]).filter((c) => !samePos(c, start) && !samePos(c, exit));
+
+  for (const c of candidates) {
+    if (doors.length >= 8) break;
+    if (Math.random() < 0.48) {
+      doors.push({
+        x: c.x,
+        y: c.y,
+        locked: false,
+        color: c.color,
+        parentIndex: c.parentIndex,
+        childIndex: c.childIndex
+      });
+    }
+  }
+
+  const lockable = shuffle(doors.filter((d) => d.parentIndex !== undefined));
+  const lockCount = Math.min(3, Math.max(1, Math.floor(lockable.length / 3)));
+
+  for (let i = 0; i < lockCount; i++) {
+    if (Math.random() < 0.75) {
+      lockable[i].locked = true;
+      lockable[i].color = randomColor();
+    }
+  }
+
+  return doors;
+}
+
+function placeChests(rooms, doors, start, exit) {
+  const chestsByRoom = new Map();
+  const blocked = new Set([key(start.x, start.y), key(exit.x, exit.y), ...doors.map((d) => key(d.x, d.y))]);
+  const usedImportantRooms = new Set();
+
+  function placeChestInRoom(roomIndex, items, locked = false, lockColor = null) {
+    if (roomIndex === null || roomIndex === undefined) return false;
+    if (chestsByRoom.has(roomIndex)) return false;
+    chestsByRoom.set(roomIndex, { items, locked, lockColor });
+    return true;
+  }
+
+  const exitRoomIndex = roomIndexForPoint(rooms, exit);
+  const startRoomIndex = roomIndexForPoint(rooms, start);
+  const exitKeyRoom = chooseKeyRoomAwayFrom(rooms, exitRoomIndex, new Set([exitRoomIndex]));
+  placeChestInRoom(exitKeyRoom, [`${titleColor(exit.color)} Key`], false, null);
+  usedImportantRooms.add(exitKeyRoom);
+
+  for (const door of doors) {
+    if (!door.locked) continue;
+
+    const disallowed = new Set([...usedImportantRooms, exitRoomIndex]);
+    let keyRoom = door.parentIndex;
+
+    if (keyRoom === undefined || keyRoom === door.childIndex || disallowed.has(keyRoom) || chestsByRoom.has(keyRoom)) {
+      keyRoom = chooseKeyRoomNearStart(rooms, startRoomIndex, disallowed);
+    }
+
+    placeChestInRoom(keyRoom, [`${titleColor(door.color)} Key`], false, null);
+    usedImportantRooms.add(keyRoom);
+  }
+
+  const requiredColors = new Set([exit.color, ...doors.filter((d) => d.locked).map((d) => d.color)]);
+  const targetChestCount = Math.min(rooms.length, Math.max(6, chestsByRoom.size + 4));
+  const roomOrder = shuffle([...rooms.keys()]);
+
+  while (chestsByRoom.size < targetChestCount && roomOrder.length) {
+    const roomIndex = roomOrder.pop();
+    if (chestsByRoom.has(roomIndex)) continue;
+
+    const canLock = requiredColors.size > 0 && Math.random() < 0.28;
+    const lockColor = canLock ? [...requiredColors][randInt(0, requiredColors.size - 1)] : null;
+
+    chestsByRoom.set(roomIndex, {
+      items: [randomChestItem()],
+      locked: canLock,
+      lockColor
+    });
+  }
+
+  const chests = [];
+
+  for (const [roomIndex, chestData] of chestsByRoom.entries()) {
+    const room = rooms[roomIndex] || rooms[0];
+    const pos = randomFloorInRoom(room, blocked);
+    if (!pos) continue;
+
+    chests.push({
+      x: pos.x,
+      y: pos.y,
+      items: chestData.items,
+      locked: chestData.locked,
+      lockColor: chestData.lockColor,
+      roomIndex
+    });
+
+    blocked.add(key(pos.x, pos.y));
+  }
+
+  return chests;
+}
+
+function chooseKeyRoomAwayFrom(rooms, avoidIndex, disallowed = new Set()) {
+  const avoid = rooms[avoidIndex];
+
+  const candidates = rooms
+    .map((room, index) => ({ room, index }))
+    .filter(({ index }) => !disallowed.has(index));
+
+  if (!candidates.length) return 0;
+
+  candidates.sort((a, b) => {
+    const distA = Math.abs(a.room.cx - avoid.cx) + Math.abs(a.room.cy - avoid.cy);
+    const distB = Math.abs(b.room.cx - avoid.cx) + Math.abs(b.room.cy - avoid.cy);
+    return distB - distA;
+  });
+
+  const topChoices = candidates.slice(0, Math.min(5, candidates.length));
+  return topChoices[randInt(0, topChoices.length - 1)].index;
+}
+
+function chooseKeyRoomNearStart(rooms, startIndex, disallowed = new Set()) {
+  const startRoom = rooms[startIndex];
+
+  const candidates = rooms
+    .map((room, index) => ({ room, index }))
+    .filter(({ index }) => !disallowed.has(index));
+
+  if (!candidates.length) return startIndex;
+
+  candidates.sort((a, b) => {
+    const distA = Math.abs(a.room.cx - startRoom.cx) + Math.abs(a.room.cy - startRoom.cy);
+    const distB = Math.abs(b.room.cx - startRoom.cx) + Math.abs(b.room.cy - startRoom.cy);
+    return distA - distB;
+  });
+
+  const topChoices = candidates.slice(0, Math.min(5, candidates.length));
+  return topChoices[randInt(0, topChoices.length - 1)].index;
+}
+
+function roomIndexForPoint(rooms, point) {
+  let bestIndex = 0;
+  let bestDist = Infinity;
+
+  rooms.forEach((room, index) => {
+    const dist = Math.abs(room.cx - point.x) + Math.abs(room.cy - point.y);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIndex = index;
+    }
+  });
+
+  return bestIndex;
+}
+
+function roomAt(x, y) {
+  return game.rooms.find((room) =>
+    x >= room.x &&
+    x < room.x + room.w &&
+    y >= room.y &&
+    y < room.y + room.h
+  ) || null;
+}
+
+function sameRoom(a, b) {
+  const roomA = roomAt(a.x, a.y);
+  const roomB = roomAt(b.x, b.y);
+  return Boolean(roomA && roomB && roomA === roomB);
+}
+
+function randomFloorInRoom(room, blocked) {
+  const spots = [];
+
+  for (let y = room.y; y < room.y + room.h; y++) {
+    for (let x = room.x; x < room.x + room.w; x++) {
+      const p = key(x, y);
+      if (!blocked.has(p)) spots.push({ x, y });
+    }
+  }
+
+  return spots.length ? spots[randInt(0, spots.length - 1)] : null;
+}
+
+function randomChestItem() {
+  return ITEM_POOL[randInt(0, ITEM_POOL.length - 1)];
+}
+
+function randomColor() {
+  return COLORS[randInt(0, COLORS.length - 1)];
+}
+
+function fallbackDungeon() {
+  const walls = new Set();
+  const floors = new Set();
+
+  for (let y = 0; y < MAP_HEIGHT; y++) {
+    for (let x = 0; x < MAP_WIDTH; x++) walls.add(key(x, y));
+  }
+
+  const rooms = [
+    { x: 8, y: 8, w: 10, h: 6 },
+    { x: 19, y: 8, w: 10, h: 6 },
+    { x: 30, y: 8, w: 10, h: 6 }
+  ];
+
+  rooms.forEach(finishRoom);
+  rooms.forEach((room) => carveRoom(room, walls, floors));
+
+  carveFloor(18, 10, walls, floors);
+  carveFloor(29, 10, walls, floors);
+
+  for (let x = 39; x < MAP_WIDTH; x++) carveFloor(x, 10, walls, floors);
+
+  return {
+    walls,
+    floors,
+    rooms,
+    start: { x: rooms[0].cx, y: rooms[0].cy },
+    exit: { x: MAP_WIDTH - 1, y: 10, color: "red" },
+    doors: [{ x: 29, y: 10, color: "blue", locked: true, parentIndex: 1, childIndex: 2 }],
+    chests: [
+      { x: 10, y: 10, items: ["Blue Key"], locked: false, lockColor: null, roomIndex: 0 },
+      { x: 21, y: 10, items: ["Red Key"], locked: false, lockColor: null, roomIndex: 1 },
+      { x: 32, y: 10, items: ["Ammo Box"], locked: false, lockColor: null, roomIndex: 2 }
+    ]
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function facingVector() {
+  return DIR_VECTORS[game.player.dir];
+}
+
+function leftVector() {
+  const table = {
+    north: { x: -1, y: 0 },
+    east: { x: 0, y: -1 },
+    south: { x: 1, y: 0 },
+    west: { x: 0, y: 1 }
+  };
+
+  return table[game.player.dir];
+}
+
+function rotateFacing(delta) {
+  const current = FACINGS.indexOf(game.player.dir);
+  game.player.dir = FACINGS[(current + delta + FACINGS.length) % FACINGS.length];
+}
+
+function miniMapOrigin() {
+  return {
+    x: clamp(game.player.x - Math.floor(MINI_WIDTH / 2), 0, MAP_WIDTH - MINI_WIDTH),
+    y: clamp(game.player.y - Math.floor(MINI_HEIGHT / 2), 0, MAP_HEIGHT - MINI_HEIGHT)
+  };
+}
+
+function recalcVisibility() {
+  game.visible.clear();
+
+  for (let y = Math.max(0, game.player.y - VIS_RADIUS); y <= Math.min(MAP_HEIGHT - 1, game.player.y + VIS_RADIUS); y++) {
+    for (let x = Math.max(0, game.player.x - VIS_RADIUS); x <= Math.min(MAP_WIDTH - 1, game.player.x + VIS_RADIUS); x++) {
+      const dist = Math.hypot(x - game.player.x, y - game.player.y);
+
+      if (dist <= VIS_RADIUS && hasLine(game.player.x, game.player.y, x, y, true)) {
+        const p = key(x, y);
+        game.visible.add(p);
+        game.discovered.add(p);
+      }
+    }
+  }
+}
+
+function hasLine(x0, y0, x1, y1, stopAtWall) {
+  let dx = Math.abs(x1 - x0);
+  let dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  let x = x0;
+  let y = y0;
+
+  while (!(x === x1 && y === y1)) {
+    const e2 = err * 2;
+
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+
+    if (x === x1 && y === y1) break;
+    if (stopAtWall && game.walls.has(key(x, y))) return false;
+  }
+
+  return true;
+}
+
+function enemyAt(x, y) {
+  return game.enemies.find((e) => e.x === x && e.y === y);
+}
+
+function chestAt(x, y) {
+  return game.chests.find((c) => c.x === x && c.y === y);
+}
+
+function doorAt(x, y) {
+  return game.doors.find((d) => d.x === x && d.y === y);
+}
+
+function pickupAt(x, y) {
+  return game.pickups.find((p) => p.x === x && p.y === y);
+}
+
+function enemyMaxHp() {
+  return ENEMY_MAX_HP + Math.floor((game.level - 1) / 2);
+}
+
+function enemyDamage() {
+  return ENEMY_DAMAGE + Math.floor((game.level - 1) / 4);
+}
+
+function startingEnemyCount() {
+  return Math.min(4 + game.level, enemyCap());
+}
+
+function enemySymbol(enemy) {
+  return enemy.hp === enemy.maxHp ? "H" : "h";
+}
+
+function healthCondition(current, max) {
+  const ratio = current / max;
+  if (ratio > 0.6) return "healthy";
+  if (ratio > 0.3) return "injured";
+  return "critical";
+}
+
+function conditionLabel(condition) {
+  if (condition === "healthy") return "Healthy";
+  if (condition === "injured") return "Injured";
+  if (condition === "critical") return "Critical";
+  return "None";
+}
+
+function addLog(message) {
+  game.logs.push(message);
+  game.logs = game.logs.slice(-MAX_LOG_LINES);
+}
+
+function hasKey(color) {
+  return game.keys.includes(color);
+}
+
+function addKey(color) {
+  if (!hasKey(color)) {
+    game.keys.push(color);
+    addLog(`${titleColor(color)} Key obtained.`);
+  } else {
+    addLog(`You already have the ${titleColor(color)} Key.`);
+  }
+}
+
+function isInForwardView(entity) {
+  const f = facingVector();
+  const l = leftVector();
+  const dx = entity.x - game.player.x;
+  const dy = entity.y - game.player.y;
+  const depth = dx * f.x + dy * f.y;
+  const lateral = dx * l.x + dy * l.y;
+
+  if (depth < 1 || depth > FIRST_PERSON_DEPTH) return false;
+  if (Math.abs(lateral) > SIDE_VIEW_TILES) return false;
+  return hasLine(game.player.x, game.player.y, entity.x, entity.y, true);
+}
+
+function visibleShootableEnemies() {
+  return game.enemies
+    .filter((enemy) => isShootable(enemy))
+    .sort((a, b) => {
+      const da = Math.abs(a.x - game.player.x) + Math.abs(a.y - game.player.y);
+      const db = Math.abs(b.x - game.player.x) + Math.abs(b.y - game.player.y);
+      return da - db;
+    });
+}
+
+function isShootable(enemy) {
+  const targetKey = key(enemy.x, enemy.y);
+  if (!game.visible.has(targetKey)) return false;
+
+  const shooter = { x: game.player.x, y: game.player.y };
+  const target = { x: enemy.x, y: enemy.y };
+
+  if (sameRoom(shooter, target)) {
+    return isInForwardView(enemy) || hasLine(game.player.x, game.player.y, enemy.x, enemy.y, true);
+  }
+
+  return isInForwardView(enemy);
+}
+
+function ensureTargetValid(autoSelect = true) {
+  const targets = visibleShootableEnemies();
+
+  if (game.selectedTargetKey && targets.some((enemy) => key(enemy.x, enemy.y) === game.selectedTargetKey)) {
+    return;
+  }
+
+  game.selectedTargetKey = autoSelect && targets.length ? key(targets[0].x, targets[0].y) : null;
+}
+
+function cycleTarget() {
+  if (game.over || game.pendingChest || game.won) return;
+
+  const targets = visibleShootableEnemies();
+
+  if (!targets.length) {
+    game.selectedTargetKey = null;
+    addLog("No target in sight.");
+    render();
+    return;
+  }
+
+  const currentIndex = targets.findIndex((enemy) => key(enemy.x, enemy.y) === game.selectedTargetKey);
+  const next = targets[(currentIndex + 1) % targets.length];
+
+  game.selectedTargetKey = key(next.x, next.y);
+  addLog(`Target selected: ${enemySymbol(next)}.`);
+  render();
+}
+
+function aimWeapon() {
+  resolveAction(() => {
+    if (game.aiming) {
+      addLog("Your weapon is already raised.");
+      return false;
+    }
+
+    ensureTargetValid(true);
+    game.aiming = true;
+    game.turn++;
+    addLog("You raise your weapon.");
+    return true;
+  });
+}
+
+function fireSelectedTarget() {
+  const target = game.selectedTargetKey ? getEnemyByKey(game.selectedTargetKey) : null;
+
+  if (!game.aiming) {
+    addLog("You need to aim first.");
+    render();
+    return;
+  }
+
+  if (!target || !isShootable(target)) {
+    addLog("No target selected.");
+    ensureTargetValid(true);
+    render();
+    return;
+  }
+
+  tryShootAt(target.x, target.y);
+}
+
+function getEnemyByKey(posKey) {
+  return game.enemies.find((enemy) => key(enemy.x, enemy.y) === posKey);
+}
+
+function resolveAction(action) {
+  if (game.over || game.pendingChest) return;
+
+  const valid = action();
+
+  if (!valid) {
+    render();
+    return;
+  }
+
+  cleanupDead();
+  recalcVisibility();
+
+  if (!game.over && !game.won && game.turn % 2 === 0) enemiesTurn();
+  if (!game.over && !game.won && game.turn % 5 === 0 && game.enemies.length < enemyCap()) spawnEnemies(1);
+
+  cleanupDead();
+  recalcVisibility();
+  ensureTargetValid(false);
+  checkEnd();
+  render();
+}
+
+function enemyCap() {
+  return Math.min(BASE_ENEMY_CAP + Math.floor((game.level - 1) / 2), 14);
+}
+
+function turnLeft() {
+  resolveAction(() => {
+    game.aiming = false;
+    rotateFacing(-1);
+    game.turn++;
+    addLog(`You turn ${game.player.dir}.`);
+    return true;
+  });
+}
+
+function turnRight() {
+  resolveAction(() => {
+    game.aiming = false;
+    rotateFacing(1);
+    game.turn++;
+    addLog(`You turn ${game.player.dir}.`);
+    return true;
+  });
+}
+
+function moveForward() {
+  const f = facingVector();
+  moveBy(f.x, f.y);
+}
+
+function moveBackward() {
+  const f = facingVector();
+  moveBy(-f.x, -f.y);
+}
+
+function strafeLeft() {
+  const l = leftVector();
+  moveBy(l.x, l.y);
+}
+
+function strafeRight() {
+  const l = leftVector();
+  moveBy(-l.x, -l.y);
+}
+
+function moveBy(dx, dy) {
+  resolveAction(() => {
+    const nx = game.player.x + dx;
+    const ny = game.player.y + dy;
+    const p = key(nx, ny);
+
+    game.aiming = false;
+
+    if (!inBounds(nx, ny) || game.walls.has(p)) {
+      return false; // Collision is obvious in the first-person viewport.
+      return false;
+    }
+
+    if(window.ASCIIHordeRaycaster && window.ASCIIHordeRaycaster.isPropAt(game,nx,ny))return false;
+    const door = doorAt(nx, ny);
+
+    if (door && door.locked) {
+      if (!hasKey(door.color)) {
+        addLog(`The ${door.color} door is locked.`);
+        return false;
+      }
+
+      door.locked = false;
+      addLog(`The ${titleColor(door.color)} Key opens the door.`);
+    }
+
+    const foe = enemyAt(nx, ny);
+
+    if (foe) {
+      foe.hp -= 1;
+      addLog(foe.hp > 0 ? "You shove into the enemy. It staggers, but holds." : "You crush the weakened enemy at close range.");
+      game.turn++;
+      return true;
+    }
+
+    const chest = chestAt(nx, ny);
+
+    if (chest && chest.locked) {
+      if (!hasKey(chest.lockColor)) {
+        addLog(`The chest is locked. It needs a ${titleColor(chest.lockColor)} Key.`);
+        return false;
+      }
+
+      chest.locked = false;
+      addLog(`The ${titleColor(chest.lockColor)} Key opens the chest.`);
+    }
+
+    if (nx === game.exit.x && ny === game.exit.y) {
+      if (!hasKey(game.exit.color)) {
+        addLog("The exit is sealed. A matching key is needed.");
+        return false;
+      }
+
+      game.player.x = nx;
+      game.player.y = ny;
+      game.won = true;
+      game.over = true;
+      game.turn++;
+      addLog("The exit seal breaks.");
+      addLog("Level complete.");
+      openLevelOverlay();
+      return true;
+    }
+
+    game.player.x = nx;
+    game.player.y = ny;
+
+    const pickup = pickupAt(nx, ny);
+    if (pickup) collectPickup(pickup);
+
+    const openedChest = chestAt(nx, ny);
+    if (openedChest) {
+      game.pendingChest = openedChest;
+      addLog(`Chest found: ${chestLabel(openedChest)}.`);
+      openChestOverlay(openedChest);
+    }
+
+    game.turn++;
+    return true;
+  });
+}
+
+function chestLabel(chest) {
+  return chest.items.join(", ");
+}
+
+function tryShootAt(x, y) {
+  resolveAction(() => {
+    const targetKey = key(x, y);
+
+    if (!game.visible.has(targetKey)) {
+      addLog("You can't see a target there.");
+      return false;
+    }
+
+    const foe = enemyAt(x, y);
+
+    if (!foe) {
+      addLog("No visible target.");
+      return false;
+    }
+
+    if (!isShootable(foe)) {
+      addLog("No clear shot.");
+      return false;
+    }
+
+    if (game.shots <= 0) {
+      addLog(game.reserveAmmo > 0 ? "Your magazine is empty. Reload." : "Your weapon clicks dry. No ammunition remains.");
+      return false;
+    }
+
+    game.shots--;
+    game.turn++;
+    if (window.ASCIIHordeRaycaster && window.ASCIIHordeRaycaster.recoil) {
+      window.ASCIIHordeRaycaster.recoil();
+    }
+
+    if (Math.random() < MISS_CHANCE) {
+      window.ASCIIHordeRaycaster?.feedback("MISS");
+      addLog("Your shot snaps wide in the dark.");
+      return true;
+    }
+
+    window.ASCIIHordeRaycaster?.feedback("HIT");
+    foe.hp -= game.shotDamage;
+
+    if (foe.hp > 0) {
+      const condition = conditionLabel(healthCondition(foe.hp, foe.maxHp)).toLowerCase();
+      addLog(`Your shot hits the enemy. It persists, now ${condition}.`);
+    } else {
+      addLog("Your shot drops the enemy into the dark.");
+    }
+
+    return true;
+  });
+}
+
+function reload() {
+  resolveAction(() => {
+    game.aiming = false;
+
+    if (game.shots === game.maxShots) {
+      addLog("Your magazine is already full.");
+      return false;
+    }
+
+    if (game.reserveAmmo <= 0) {
+      addLog("No reserve ammunition.");
+      return false;
+    }
+
+    const needed = game.maxShots - game.shots;
+    const loaded = Math.min(needed, game.reserveAmmo);
+
+    game.shots += loaded;
+    game.reserveAmmo -= loaded;
+    game.turn++;
+
+    addLog(`You reload ${loaded} round${loaded === 1 ? "" : "s"}.`);
+    return true;
+  });
+}
+
+function waitTurn() {
+  resolveAction(() => {
+    game.turn++;
+    addLog(game.aiming ? "You hold your aim." : "You hold your ground.");
+    return true;
+  });
+}
+
+function enemiesTurn() {
+  let attacks = 0;
+
+  for (const enemy of game.enemies) {
+    const dx = game.player.x - enemy.x;
+    const dy = game.player.y - enemy.y;
+
+    if (Math.abs(dx) + Math.abs(dy) === 1) {
+      applyDamage(enemyDamage());
+      attacks++;
+      continue;
+    }
+
+    const options = [];
+
+    if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) options.push([enemy.x + Math.sign(dx), enemy.y]);
+    if (dy !== 0) options.push([enemy.x, enemy.y + Math.sign(dy)]);
+    if (Math.abs(dx) < Math.abs(dy) && dx !== 0) options.push([enemy.x + Math.sign(dx), enemy.y]);
+
+    for (const [nx, ny] of options) {
+      const d = doorAt(nx, ny);
+      if (!isEnemyPassable(nx, ny) || (d && d.locked)) continue;
+      enemy.x = nx;
+      enemy.y = ny;
+      break;
+    }
+  }
+
+  if (attacks) addLog(`The horde claws at you: ${attacks} hit${attacks > 1 ? "s" : ""}.`);
+}
+
+function isEnemyPassable(x, y) {
+  return inBounds(x, y) &&
+    game.floors.has(key(x, y)) &&
+    !game.walls.has(key(x, y)) &&
+    !enemyAt(x, y) &&
+    !(game.player.x === x && game.player.y === y);
+}
+
+function spawnEnemies(count) {
+  const candidates = [];
+
+  for (const p of game.floors) {
+    const [x, y] = p.split(",").map(Number);
+
+    if (game.visible.has(p)) continue;
+    if (enemyAt(x, y) || chestAt(x, y) || doorAt(x, y) || pickupAt(x, y)) continue;
+    if (x === game.exit.x && y === game.exit.y) continue;
+
+    candidates.push({ x, y, dist: Math.abs(x - game.player.x) + Math.abs(y - game.player.y) });
+  }
+
+  candidates.sort((a, b) => b.dist - a.dist);
+
+  let spawned = 0;
+
+  while (spawned < count && candidates.length && game.enemies.length < enemyCap()) {
+    const pick = candidates.splice(randInt(0, Math.min(12, candidates.length - 1)), 1)[0];
+    const maxHp = enemyMaxHp();
+    game.enemies.push({ x: pick.x, y: pick.y, hp: maxHp, maxHp });
+    spawned++;
+  }
+}
+
+function cleanupDead() {
+  const survivors = [];
+  let dead = 0;
+
+  for (const enemy of game.enemies) {
+    if (enemy.hp > 0) {
+      survivors.push(enemy);
+      continue;
+    }
+
+    dead++;
+    maybeDropAmmo(enemy.x, enemy.y);
+  }
+
+  game.enemies = survivors;
+
+  if (dead) {
+    game.kills += dead;
+    game.totalKills += dead;
+    addLog(dead === 1 ? "The enemy falls silent." : `${dead} enemies fall silent.`);
+  }
+}
+
+function maybeDropAmmo(x, y) {
+  if (Math.random() > 0.25) return;
+  if (pickupAt(x, y) || chestAt(x, y) || doorAt(x, y)) return;
+  if (!game.floors.has(key(x, y))) return;
+
+  game.pickups.push({ x, y, type: "Ammo", amount: randInt(2, 4) });
+}
+
+function collectPickup(pickup) {
+  if (pickup.type === "Ammo") {
+    game.reserveAmmo += pickup.amount;
+    addLog(`You recover ${pickup.amount} round${pickup.amount === 1 ? "" : "s"}.`);
+  }
+
+  game.pickups = game.pickups.filter((p) => p !== pickup);
+}
+
+function applyDamage(damage) {
+  let remaining = damage;
+  const armor = game.inventory.find((item) => item.name === "Body Armor");
+
+  if (armor && armor.armor > 0) {
+    const blocked = Math.min(armor.armor, remaining);
+    armor.armor -= blocked;
+    remaining -= blocked;
+
+    addLog(`Your armor absorbs ${blocked} damage.`);
+
+    if (armor.armor <= 0) {
+      game.inventory = game.inventory.filter((item) => item !== armor);
+      addLog("Body Armor breaks.");
+    }
+  }
+
+  if (remaining > 0) {
+    window.ASCIIHordeRaycaster?.damage();
+    game.player.hp -= remaining;
+    const condition = conditionLabel(healthCondition(Math.max(0, game.player.hp), game.player.maxHp)).toLowerCase();
+    addLog(`You take ${remaining} damage. You are ${condition}.`);
+  }
+}
+
+function useItem(index) {
+  resolveAction(() => {
+    const item = game.inventory[index];
+    if (!item) return false;
+
+    if (item.name === "Health Kit") {
+      game.player.hp = Math.min(game.player.maxHp, game.player.hp + 3);
+      game.inventory.splice(index, 1);
+      game.turn++;
+      addLog(`You use a Health Kit and recover to ${conditionLabel(healthCondition(game.player.hp, game.player.maxHp)).toLowerCase()}.`);
+      return true;
+    }
+
+    addLog("That item is used automatically.");
+    return false;
+  });
+}
+
+function takeChest() {
+  if (!game.pendingChest) return;
+
+  const chest = game.pendingChest;
+
+  for (const item of chest.items) takeItem(item);
+
+  game.chests = game.chests.filter((c) => c !== chest);
+  game.pendingChest = null;
+  closeChestOverlay();
+
+  resolveAction(() => {
+    game.turn++;
+    return true;
+  });
+}
+
+function takeItem(item) {
+  if (item.endsWith("Key")) {
+    const color = item.split(" ")[0].toLowerCase();
+    addKey(color);
+    return;
+  }
+
+  if (item === "Health Kit") game.inventory.push({ name: "Health Kit" });
+  if (item === "Body Armor") game.inventory.push({ name: "Body Armor", armor: 3 });
+
+  if (item === "Ammo Box") {
+    const amount = randInt(6, 10);
+    game.reserveAmmo += amount;
+    addLog(`Ammo box found. Reserve +${amount}.`);
+  }
+
+  if (item === "Extended Magazine") {
+    game.maxShots += 3;
+    addLog(`Extended Magazine installed. Magazine size is now ${game.maxShots}.`);
+  }
+
+  if (item === "Improved Barrel") {
+    game.shotDamage += 1;
+    addLog("Improved Barrel installed. Your shots hit harder.");
+  }
+
+  if (item === "Map") {
+    game.mapFound = true;
+    addLog("You found a map. The floor plan is outlined.");
+  }
+
+  if (!item.endsWith("Key")) addLog(`Item taken: ${item}.`);
+}
+
+function leaveChest() {
+  if (!game.pendingChest) return;
+
+  game.pendingChest = null;
+  closeChestOverlay();
+  addLog("Item left.");
+  render();
+}
+
+function openChestOverlay(chest) {
+  const lockText = chest.locked ? `Locked ${titleColor(chest.lockColor)} Chest` : "Chest";
+  el.chestText.textContent = `${lockText}: ${chestLabel(chest)}`;
+  el.chestOverlay.classList.remove("hidden");
+}
+
+function closeChestOverlay() {
+  if (el.chestOverlay) el.chestOverlay.classList.add("hidden");
+}
+
+function openLevelOverlay() {
+  el.levelText.textContent = `Floor ${game.level} cleared. Kills this floor: ${game.kills}. Total kills: ${game.totalKills}.`;
+  el.levelOverlay.classList.remove("hidden");
+}
+
+function closeLevelOverlay() {
+  if (el.levelOverlay) el.levelOverlay.classList.add("hidden");
+}
+
+function checkEnd() {
+  if (game.player.hp <= 0) {
+    game.player.hp = 0;
+    game.over = true;
+    game.aiming = false;
+    addLog("You fall. Press Restart.");
+  }
+}
+
+function render() {
+  el.level.textContent = game.level;
+
+  const playerCondition = healthCondition(game.player.hp, game.player.maxHp);
+  el.condition.textContent = conditionLabel(playerCondition);
+  el.condition.className = `condition ${playerCondition}`;
+
+  el.mode.textContent = game.aiming ? "Aim" : "Move";
+  el.mode.className = game.aiming ? "aiming" : "moving";
+
+  el.shots.textContent = `${game.shots}/${game.reserveAmmo}`;
+  el.turn.textContent = game.turn;
+  el.kills.textContent = game.kills;
+  el.enemyCount.textContent = game.enemies.length;
+
+  renderFirstPersonView();
+  renderMiniMap();
+  el.log.innerHTML = game.logs.map((msg) => `<p>${escapeHtml(msg)}</p>`).join("");
+  renderInventory();
+}
+
+function renderFirstPersonView() {
+  if (window.ASCIIHordeRaycaster) {
+    window.ASCIIHordeRaycaster.render(game, el.firstPersonView);
+  } else {
+    el.firstPersonView.innerHTML = renderPerspectiveSvg();
+  }
+}
+
+function renderPerspectiveSvg() {
+  const frames = perspectiveFrames();
+  const parts = [];
+
+  parts.push(`
+    <svg class="fp-svg" viewBox="0 0 100 56" preserveAspectRatio="none" aria-label="First person dungeon scene">
+      <defs>
+        <radialGradient id="sceneGlow" cx="50%" cy="52%" r="62%">
+          <stop offset="0%" stop-color="#151515" />
+          <stop offset="62%" stop-color="#080808" />
+          <stop offset="100%" stop-color="#020202" />
+        </radialGradient>
+        <linearGradient id="floorFade" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#050505" />
+          <stop offset="100%" stop-color="#171717" />
+        </linearGradient>
+      </defs>
+
+      <rect x="0" y="0" width="100" height="56" fill="url(#sceneGlow)" />
+      <polygon points="4,51 96,51 62,31 38,31" fill="url(#floorFade)" opacity="0.86" />
+      <polygon points="4,5 96,5 62,25 38,25" fill="#050505" opacity="0.72" />
+  `);
+
+  let blockedAheadAt = null;
+
+  for (let depth = 1; depth <= FIRST_PERSON_DEPTH; depth++) {
+    const center = relativeTile(depth, 0);
+    if (!inBounds(center.x, center.y) || game.walls.has(key(center.x, center.y))) {
+      blockedAheadAt = depth;
+      break;
+    }
+  }
+
+  for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
+    if (!blockedAheadAt || depth <= blockedAheadAt) {
+      parts.push(drawOpenFrame(depth, frames));
+      parts.push(drawWideWallsAtDepth(depth, frames));
+    }
+  }
+
+  for (let depth = 1; depth <= FIRST_PERSON_DEPTH; depth++) {
+    const center = relativeTile(depth, 0);
+    const p = key(center.x, center.y);
+
+    if (!inBounds(center.x, center.y) || game.walls.has(p)) {
+      parts.push(drawFrontWall(depth, frames));
+      break;
+    }
+
+    const door = doorAt(center.x, center.y);
+    if (door) {
+      parts.push(drawDoor(depth, door, frames));
+      break;
+    }
+
+    if (game.exit.x === center.x && game.exit.y === center.y) {
+      parts.push(drawExit(depth, frames));
+      break;
+    }
+  }
+
+  for (let depth = FIRST_PERSON_DEPTH; depth >= 1; depth--) {
+    if (blockedAheadAt && depth > blockedAheadAt) continue;
+
+    for (let lateral = -SIDE_VIEW_TILES; lateral <= SIDE_VIEW_TILES; lateral++) {
+      const pos = relativeTile(depth, lateral);
+      if (!inBounds(pos.x, pos.y)) continue;
+
+      const p = key(pos.x, pos.y);
+      if (!game.visible.has(p)) continue;
+      if (!hasLine(game.player.x, game.player.y, pos.x, pos.y, true)) continue;
+
+      const obj = sceneObjectAt(pos.x, pos.y);
+      if (!obj) continue;
+
+      parts.push(drawGroundedObject(obj, depth, lateral, frames));
+    }
+  }
+
+  parts.push(`</svg>`);
+  return parts.join("");
+}
+
+function perspectiveFrames() {
+  return [
+    { l: 4, t: 5, r: 96, b: 51 },
+    { l: 17, t: 10, r: 83, b: 46 },
+    { l: 29, t: 16, r: 71, b: 40 },
+    { l: 39, t: 22, r: 61, b: 34 },
+    { l: 46, t: 26, r: 54, b: 30 },
+    { l: 50, t: 28, r: 50, b: 28 }
+  ];
+}
+
+function drawOpenFrame(depth, frames) {
+  const near = frames[depth - 1];
+  const far = frames[depth];
+
+  return `
+    <line x1="${near.l}" y1="${near.b}" x2="${near.r}" y2="${near.b}" stroke="#2f6d2f" stroke-width="0.35" opacity="0.16" />
+    <line x1="${near.l}" y1="${near.t}" x2="${near.r}" y2="${near.t}" stroke="#2f6d2f" stroke-width="0.3" opacity="0.10" />
+    <line x1="${near.l}" y1="${near.b}" x2="${far.l}" y2="${far.b}" stroke="#2f6d2f" stroke-width="0.28" opacity="0.14" />
+    <line x1="${near.r}" y1="${near.b}" x2="${far.r}" y2="${far.b}" stroke="#2f6d2f" stroke-width="0.28" opacity="0.14" />
+  `;
+}
+
+function drawWideWallsAtDepth(depth, frames) {
+  const parts = [];
+
+  for (let lateral = -SIDE_VIEW_TILES; lateral <= SIDE_VIEW_TILES; lateral++) {
+    if (lateral === 0) continue;
+
+    const pos = relativeTile(depth, lateral);
+    if (!inBounds(pos.x, pos.y) || game.walls.has(key(pos.x, pos.y))) {
+      parts.push(drawSideWallPanel(depth, lateral, frames));
+    }
+  }
+
+  return parts.join("");
+}
+
+function drawSideWallPanel(depth, lateral, frames) {
+  const near = frames[depth - 1];
+  const far = frames[depth];
+
+  const screenSide = lateral > 0 ? -1 : 1;
+  const band = Math.min(Math.abs(lateral), SIDE_VIEW_TILES);
+  const sideFactorNear = band / SIDE_VIEW_TILES;
+  const sideFactorFar = Math.max(0.15, (band - 0.6) / SIDE_VIEW_TILES);
+
+  const nearInnerX = screenSide < 0
+    ? lerp(50, near.l, sideFactorNear)
+    : lerp(50, near.r, sideFactorNear);
+  const nearOuterX = screenSide < 0
+    ? lerp(50, near.l, Math.min(1, sideFactorNear + 0.32))
+    : lerp(50, near.r, Math.min(1, sideFactorNear + 0.32));
+
+  const farInnerX = screenSide < 0
+    ? lerp(50, far.l, sideFactorFar)
+    : lerp(50, far.r, sideFactorFar);
+  const farOuterX = screenSide < 0
+    ? lerp(50, far.l, Math.min(1, sideFactorFar + 0.32))
+    : lerp(50, far.r, Math.min(1, sideFactorFar + 0.32));
+
+  const points = screenSide < 0
+    ? `${nearOuterX},${near.t} ${nearInnerX},${near.t} ${farInnerX},${far.t} ${farOuterX},${far.t} ${farOuterX},${far.b} ${farInnerX},${far.b} ${nearInnerX},${near.b} ${nearOuterX},${near.b}`
+    : `${nearInnerX},${near.t} ${nearOuterX},${near.t} ${farOuterX},${far.t} ${farInnerX},${far.t} ${farInnerX},${far.b} ${farOuterX},${far.b} ${nearOuterX},${near.b} ${nearInnerX},${near.b}`;
+
+  return `
+    <polygon
+      points="${points}"
+      fill="#1f1f1f"
+      stroke="#777777"
+      stroke-width="${sideStroke(depth, band)}"
+      opacity="${sideOpacity(depth, band)}"
+    />
+  `;
+}
+
+function drawFrontWall(depth, frames) {
+  const frame = frames[depth - 1];
+  const inset = depth === 1 ? 3 : 1.2;
+  const l = frame.l + inset;
+  const r = frame.r - inset;
+  const t = frame.t + inset;
+  const b = frame.b - inset;
+
+  return `
+    <rect
+      x="${l}"
+      y="${t}"
+      width="${r - l}"
+      height="${b - t}"
+      fill="#252525"
+      stroke="#999999"
+      stroke-width="${frontStroke(depth)}"
+      opacity="${frontOpacity(depth)}"
+    />
+  `;
+}
+
+function drawDoor(depth, door, frames) {
+  const frame = frames[depth - 1];
+  const wallL = frame.l + 1.2;
+  const wallR = frame.r - 1.2;
+  const wallT = frame.t + 1.2;
+  const wallB = frame.b - 1.2;
+  const color = door.locked ? sceneColor(door.color) : "#aaaaaa";
+
+  const doorW = (wallR - wallL) * 0.28;
+  const doorH = (wallB - wallT) * 0.66;
+  const x = 50 - doorW / 2;
+  const y = wallB - doorH;
+
+  return `
+    <rect
+      x="${wallL}"
+      y="${wallT}"
+      width="${wallR - wallL}"
+      height="${wallB - wallT}"
+      fill="#242424"
+      stroke="#777777"
+      stroke-width="${Math.max(0.4, frontStroke(depth) * 0.7)}"
+      opacity="0.72"
+    />
+    <rect
+      x="${x}"
+      y="${y}"
+      width="${doorW}"
+      height="${doorH}"
+      fill="#080808"
+      stroke="${color}"
+      stroke-width="${frontStroke(depth)}"
+      opacity="0.98"
+    />
+    <line
+      x1="${x + doorW * 0.5}"
+      y1="${y + 1}"
+      x2="${x + doorW * 0.5}"
+      y2="${y + doorH - 1}"
+      stroke="${color}"
+      stroke-width="${Math.max(0.25, frontStroke(depth) * 0.3)}"
+      opacity="0.55"
+    />
+    <circle
+      cx="${x + doorW * 0.72}"
+      cy="${y + doorH * 0.54}"
+      r="${Math.max(0.35, objectScale(depth) * 0.035)}"
+      fill="${color}"
+      opacity="0.9"
+    />
+  `;
+}
+
+function drawExit(depth, frames) {
+  const frame = frames[depth - 1];
+  const wallL = frame.l + 1.2;
+  const wallR = frame.r - 1.2;
+  const wallT = frame.t + 1.2;
+  const wallB = frame.b - 1.2;
+  const color = sceneColor(game.exit.color);
+
+  const doorW = (wallR - wallL) * 0.34;
+  const doorH = (wallB - wallT) * 0.72;
+  const x = 50 - doorW / 2;
+  const y = wallB - doorH;
+
+  return `
+    <rect
+      x="${wallL}"
+      y="${wallT}"
+      width="${wallR - wallL}"
+      height="${wallB - wallT}"
+      fill="#1f1f1f"
+      stroke="#777777"
+      stroke-width="${Math.max(0.4, frontStroke(depth) * 0.7)}"
+      opacity="0.7"
+    />
+    <rect
+      x="${x}"
+      y="${y}"
+      width="${doorW}"
+      height="${doorH}"
+      fill="#070707"
+      stroke="${color}"
+      stroke-width="${frontStroke(depth)}"
+      opacity="0.98"
+    />
+    <line
+      x1="${x + doorW * 0.2}"
+      y1="${y + doorH * 0.18}"
+      x2="${x + doorW * 0.8}"
+      y2="${y + doorH * 0.18}"
+      stroke="${color}"
+      stroke-width="${Math.max(0.25, frontStroke(depth) * 0.35)}"
+      opacity="0.8"
+    />
+    <line
+      x1="${x + doorW * 0.2}"
+      y1="${y + doorH * 0.82}"
+      x2="${x + doorW * 0.8}"
+      y2="${y + doorH * 0.82}"
+      stroke="${color}"
+      stroke-width="${Math.max(0.25, frontStroke(depth) * 0.35)}"
+      opacity="0.8"
+    />
+  `;
+}
+
+function drawGroundedObject(obj, depth, lateral, frames) {
+  const frame = frames[depth - 1];
+  const scale = objectScale(depth);
+  const laneWidth = (frame.r - frame.l) / 5.1;
+  const x = 50 - lateral * laneWidth;
+  const floorY = frame.b - 2;
+  const color = obj.color || "#eeeeee";
+
+  if (obj.type === "enemy") {
+    return `
+      <text
+        x="${x}"
+        y="${floorY - scale * 0.15}"
+        text-anchor="middle"
+        font-family="Courier New, monospace"
+        font-size="${scale}"
+        fill="${color}"
+        font-weight="700"
+        ${obj.target ? `stroke="#ffffff" stroke-width="0.3"` : ""}
+      >${escapeHtml(obj.label)}</text>
+    `;
+  }
+
+  if (obj.type === "chest") {
+    const w = scale * 0.9;
+    const h = scale * 0.42;
+
+    return `
+      <rect
+        x="${x - w / 2}"
+        y="${floorY - h}"
+        width="${w}"
+        height="${h}"
+        fill="#101010"
+        stroke="${color}"
+        stroke-width="${Math.max(0.5, scale / 16)}"
+      />
+      <text
+        x="${x}"
+        y="${floorY - h * 0.25}"
+        text-anchor="middle"
+        font-family="Courier New, monospace"
+        font-size="${scale * 0.55}"
+        fill="${color}"
+        font-weight="700"
+      >C</text>
+    `;
+  }
+
+  if (obj.type === "ammo") {
+    return `
+      <text
+        x="${x}"
+        y="${floorY}"
+        text-anchor="middle"
+        font-family="Courier New, monospace"
+        font-size="${scale * 0.55}"
+        fill="#99ddff"
+        font-weight="700"
+      >a</text>
+    `;
+  }
+
+  return "";
+}
+
+function sceneObjectAt(x, y) {
+  const p = key(x, y);
+
+  const foe = enemyAt(x, y);
+  if (foe && game.visible.has(p)) {
+    const condition = healthCondition(foe.hp, foe.maxHp);
+    return {
+      type: "enemy",
+      label: enemySymbol(foe),
+      color: condition === "healthy" ? "#ff9999" : condition === "injured" ? "#ffcc66" : "#ff5555",
+      target: game.selectedTargetKey === p
+    };
+  }
+
+  const chest = chestAt(x, y);
+  if (chest) {
+    return {
+      type: "chest",
+      label: "C",
+      color: chest.locked ? sceneColor(chest.lockColor) : "#aaaaaa"
+    };
+  }
+
+  const pickup = pickupAt(x, y);
+  if (pickup) {
+    return {
+      type: "ammo",
+      label: "a",
+      color: "#99ddff"
+    };
+  }
+
+  return null;
+}
+
+function relativeTile(depth, lateral) {
+  const f = facingVector();
+  const l = leftVector();
+
+  return {
+    x: game.player.x + f.x * depth + l.x * lateral,
+    y: game.player.y + f.y * depth + l.y * lateral
+  };
+}
+
+function sceneColor(color) {
+  if (color === "red") return "#ff6666";
+  if (color === "blue") return "#66aaff";
+  if (color === "yellow") return "#ffee66";
+  if (color === "green") return "#77ff77";
+  return "#eeeeee";
+}
+
+function sideStroke(depth, band = 1) {
+  return Math.max(0.25, 1.15 - depth * 0.15 - band * 0.1);
+}
+
+function frontStroke(depth) {
+  return Math.max(0.45, 1.8 - depth * 0.22);
+}
+
+function sideOpacity(depth, band = 1) {
+  return Math.max(0.32, 0.98 - depth * 0.06 - band * 0.12);
+}
+
+function frontOpacity(depth) {
+  return 0.98;
+}
+
+function objectTextSize(depth) {
+  return Math.max(5, 22 - depth * 2.5);
+}
+
+function objectScale(depth) {
+  return Math.max(7, 25 - depth * 3.2);
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function renderMiniMap() {
+  const origin=miniMapOrigin(),size=5;
+  let shapes='<rect width="'+(MINI_WIDTH*size)+'" height="'+(MINI_HEIGHT*size)+'" fill="#080b09"/>';
+  const colors={D:"#e4e8df",E:"#f3e687",C:"#d9c1a3",a:"#a8ddf1"};
+  for(let vy=0;vy<MINI_HEIGHT;vy++)for(let vx=0;vx<MINI_WIDTH;vx++){
+    const x=origin.x+vx,y=origin.y+vy;
+    const c=renderMapCell(x,y),px=vx*size,py=vy*size;
+    if(c==="#")shapes+='<rect x="'+px+'" y="'+py+'" width="5" height="5" fill="#617367"/>';
+    else if(c===" ")shapes+='<rect x="'+px+'" y="'+py+'" width="5" height="5" fill="#1b2c21"/>';
+    else if(c==="."||c===",")shapes+='<rect x="'+(px+2)+'" y="'+(py+2)+'" width="1" height="1" fill="#28362b"/>';
+    else if(c==="^"||c==="v"||c==="<"||c===">"){
+      shapes+='<rect x="'+px+'" y="'+py+'" width="5" height="5" fill="#142819"/>';
+      const point=c==="^"?"2,0 0,4 4,4":c==="v"?"0,0 4,0 2,4":c==="<"?"0,2 4,0 4,4":"0,0 4,2 0,4";
+      shapes+='<polygon points="'+point.split(" ").map(q=>{const v=q.split(",");return (px+Number(v[0]))+","+(py+Number(v[1]));}).join(" ")+'" fill="#87f49a"/>';
+    }else{
+      const color=colors[c]||"#f28b82";
+      shapes+='<rect x="'+(px+1)+'" y="'+(py+1)+'" width="3" height="3" fill="'+color+'"/>';
+    }
+  }
+  el.miniMap.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+(MINI_WIDTH*size)+' '+(MINI_HEIGHT*size)+'" aria-label="Dungeon minimap" role="img">'+shapes+'</svg>';
+}
+
+function renderMapCell(x, y) {
+  const p = key(x, y);
+  const visible = game.visible.has(p);
+  const remembered = game.discovered.has(p);
+
+  if (game.player.x === x && game.player.y === y) return playerFacingSymbol();
+
+  const foe = enemyAt(x, y);
+  if (foe && visible) return enemySymbol(foe);
+
+  if (visible || remembered) return knownMapChar(x, y);
+
+  if (game.mapFound) {
+    if (doorAt(x, y)) return "D";
+    if (game.exit.x === x && game.exit.y === y) return "E";
+    if (game.walls.has(p)) return "#";
+  }
+
+  return ".";
+}
+
+function knownMapChar(x, y) {
+  const p = key(x, y);
+  if (pickupAt(x, y)) return "a";
+  if (chestAt(x, y)) return "C";
+  if (game.exit.x === x && game.exit.y === y) return "E";
+  if (doorAt(x, y)) return "D";
+  if (game.walls.has(p)) return "#";
+  if (game.floors.has(p)) return " ";
+  return ".";
+}
+
+function playerFacingSymbol() {
+  if (game.player.dir === "north") return "^";
+  if (game.player.dir === "east") return ">";
+  if (game.player.dir === "south") return "v";
+  return "<";
+}
+
+function renderInventory() {
+  const keyText = game.keys.length
+    ? `Keys: ${game.keys.map(titleColor).join(", ")}`
+    : "Keys: none";
+
+  const rows = game.inventory.map((item, index) => {
+    const label = item.name === "Body Armor" ? `${item.name} (${item.armor})` : item.name;
+    const button = item.name === "Health Kit" ? `<button class="btn use-item" data-idx="${index}" type="button">Use</button>` : "";
+    return `<div class="inventory-row"><span>${escapeHtml(label)}</span>${button}</div>`;
+  }).join("");
+
+  el.inventory.innerHTML = rows || "";
+  const keyHud=document.getElementById("key-hud");
+  if(keyHud){
+    keyHud.textContent=game.keys.length ? "Keys: "+game.keys.map(titleColor).join(", ") : "";
+    keyHud.hidden=!game.keys.length;
+  }
+}
+
+function setup() {
+  document.addEventListener("touchmove", (event) => {
+    event.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("keydown", (event) => {
+    if (!game) return;
+
+    const k = event.key.toLowerCase();
+
+    if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) {
+      event.preventDefault();
+    }
+
+    if (game.pendingChest || game.won) return;
+
+    if (k === "w" || k === "arrowup") moveForward();
+    if (k === "s" || k === "arrowdown") moveBackward();
+    if (k === "a" || k === "arrowleft") turnLeft();
+    if (k === "d" || k === "arrowright") turnRight();
+    if (k === "q") strafeLeft();
+    if (k === "e") strafeRight();
+    if (k === "t") cycleTarget();
+    if (k === "f") fireSelectedTarget();
+    if (k === "r") reload();
+  });
+
+  el.dpad.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-dir]");
+    if (!button || game.pendingChest || game.won) return;
+
+    const dir = button.dataset.dir;
+    if (dir === "up") moveForward();
+    if (dir === "down") moveBackward();
+    if (dir === "left") turnLeft();
+    if (dir === "right") turnRight();
+    if (dir === "strafe-left") strafeLeft();
+    if (dir === "strafe-right") strafeRight();
+  });
+
+  el.targetBtn.addEventListener("click", cycleTarget);
+  el.aimBtn.addEventListener("click", aimWeapon);
+  el.fireBtn.addEventListener("click", fireSelectedTarget);
+
+  el.waitBtn.addEventListener("click", () => {
+    if (!game.pendingChest && !game.won) waitTurn();
+  });
+
+  el.reloadBtn.addEventListener("click", () => {
+    if (!game.pendingChest && !game.won) reload();
+  });
+
+  el.restartBtn.addEventListener("click", newGame);
+  el.takeBtn.addEventListener("click", takeChest);
+  el.leaveBtn.addEventListener("click", leaveChest);
+  el.nextLevelBtn.addEventListener("click", startNextLevel);
+  el.levelRestartBtn.addEventListener("click", newGame);
+
+  el.inventory.addEventListener("click", (event) => {
+    const button = event.target.closest(".use-item");
+    if (!button || game.pendingChest || game.won) return;
+    useItem(Number(button.dataset.idx));
+  });
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
+}
+
+function bootGame() {
+  wireElements();
+
+  if (!hasRequiredElements()) {
+    showBootError("Required UI elements are missing.");
+    return;
+  }
+
+  try {
+    setup();
+    newGame();
+  } catch (error) {
+    showBootError(error && error.message ? error.message : "Unknown startup failure.");
+    throw error;
+  }
+}
+
+bootGame();
+
+</script>
+  </body>
+</html>

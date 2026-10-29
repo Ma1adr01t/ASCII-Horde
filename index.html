@@ -165,6 +165,19 @@
       .fp-enemy-critical { stroke: #ff5555; fill: #ff5555; }
       .fp-ammo { stroke: #99ddff; fill: #99ddff; }
 
+      .viewport-stack { position: relative; width: 100%; isolation: isolate; }
+      .viewport-map {
+        position: absolute;
+        top: 11px;
+        right: 11px;
+        z-index: 4;
+        margin: 0 !important;
+        background: rgba(0,0,0,.76) !important;
+        border-color: rgba(115,185,115,.55) !important;
+        box-shadow: 0 1px 6px rgba(0,0,0,.55);
+        pointer-events: none;
+        opacity: .88;
+      }
       .mini-map {
         display: block;
         width: min-content;
@@ -233,12 +246,13 @@
       .dpad {
         display: grid;
         grid-template-columns: 62px 62px 62px;
-        grid-template-rows: 40px 40px 40px;
+        grid-template-rows: 34px 34px 34px 34px;
         gap: 5px;
         grid-template-areas:
           ". up ."
           "left . right"
-          ". down .";
+          ". down ."
+          "strafe-left . strafe-right";
       }
 
       .up { grid-area: up; }
@@ -246,6 +260,9 @@
       .left { grid-area: left; }
       .right { grid-area: right; }
 
+      .strafe-control { font-size: 11px; min-height: 30px; }
+      [data-dir="strafe-left"] { grid-area: strafe-left; }
+      [data-dir="strafe-right"] { grid-area: strafe-right; }
       .actions {
         display: grid;
         grid-template-columns: repeat(2, 82px);
@@ -343,9 +360,12 @@
         }
 
         .mini-map {
-          font-size: 9px;
-          padding: 4px;
-          margin-top: 4px;
+          font-size: 7px;
+          padding: 3px;
+          margin-top: 0;
+          top: 8px;
+          right: 8px;
+          line-height: 1;
         }
 
         .message-log {
@@ -376,7 +396,7 @@
 
         .dpad {
           grid-template-columns: 54px 54px 54px;
-          grid-template-rows: 35px 35px 35px;
+          grid-template-rows: 31px 31px 31px 31px;
           gap: 4px;
         }
 
@@ -391,14 +411,41 @@
           font-size: 12px;
         }
       }
-    </style>
+      .raycast-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        image-rendering: pixelated;
+      }
+          /* Preview 10: viewport-first, compact and quieter interface. */
+      .hud { gap: 3px 11px; font-size: 12px; margin-bottom: 5px; }
+      .viewport-map { font-size: 6px !important; padding: 2px !important; top: 7px; right: 7px; opacity: .82; }
+      .message-log { min-height: 0 !important; max-height: 33px !important; overflow: hidden; opacity: .76; font-size: 11px; }
+      .message-log p:not(:last-child) { display: none; }
+      .inventory { font-size: 11px; }
+      @media (max-width: 560px) {
+        .viewport-map { font-size: 4.5px !important; padding: 2px !important; top: 6px; right: 6px; }
+        .message-log { max-height: 26px !important; min-height: 0 !important; }
+        .hud { font-size: 11px; }
+      }
+      /* Compact vector minimap and restrained charcoal-first HUD. */
+      .viewport-map { width: 112px; max-width: 35%; box-sizing: border-box; padding: 3px !important; font-size: 0 !important; line-height: 0 !important; }
+      .viewport-map svg { display: block; width: 100%; height: auto; shape-rendering: crispEdges; }
+      .first-person-view { border: 1px solid #454c48 !important; border-radius: 3px; padding: 3px; }
+      #key-hud { color: #b4cbb6; font-weight: 600; }
+      .inventory:empty { display: none; }
+      @media (max-width: 560px) {
+        .viewport-map { width: 76px; max-width: 31%; padding: 2px !important; }
+        .first-person-view { padding: 2px; }
+      }
+</style>
   </head>
 
   <body>
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: first-person-wireframe-1</div>
+        <div id="build" class="build">Build: canvas-raycasting-preview-11</div>
       </header>
 
       <section class="hud" aria-live="polite">
@@ -406,14 +453,17 @@
         <span>Condition: <strong id="condition" class="condition healthy">Healthy</strong></span>
         <span>Mode: <strong id="mode" class="moving">Move</strong></span>
         <span>Ammo: <strong id="shots">6/12</strong></span>
+        <span id="key-hud" hidden></span>
         <span>Turn: <strong id="turn">0</strong></span>
         <span>Kills: <strong id="kills">0</strong></span>
         <span>Enemies: <strong id="enemy-count">0</strong></span>
       </section>
 
       <section class="view-wrap" aria-label="First-person dungeon view">
-        <div id="first-person-view" class="first-person-view"></div>
-        <pre id="mini-map" class="mini-map" aria-label="Memory map"></pre>
+        <div class="viewport-stack">
+          <div id="first-person-view" class="first-person-view"></div>
+          <div id="mini-map" class="mini-map viewport-map" aria-label="Memory map"></div>
+        </div>
 
         <div id="chest-overlay" class="overlay hidden" aria-live="assertive">
           <div class="modal">
@@ -447,6 +497,8 @@
           <button data-dir="left" class="btn dir left" type="button">Turn L</button>
           <button data-dir="right" class="btn dir right" type="button">Turn R</button>
           <button data-dir="down" class="btn dir down" type="button">Back</button>
+          <button data-dir="strafe-left" class="btn strafe-control" type="button">Strafe L</button>
+          <button data-dir="strafe-right" class="btn strafe-control" type="button">Strafe R</button>
         </div>
 
         <div class="actions">
@@ -461,13 +513,14 @@
 
       <section class="legend">
         <p>
-          Forward/Back move by facing · Left/Right turn ·
+          W/S move · A/D turn · Q/E strafe ·
           <strong>H/h</strong> enemy · <strong>D</strong> door ·
           <strong>C</strong> chest · <strong>E</strong> exit
         </p>
       </section>
     </main>
 
-    <script src="./main.js?v=wireframe1"></script>
+    <script src="./raycaster.js?v=canvas3"></script>
+    <script src="./main.js?v=canvas3"></script>
   </body>
 </html>
