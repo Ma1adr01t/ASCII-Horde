@@ -30,6 +30,13 @@
   const COLORS = { red:"#ff6666", blue:"#66aaff", yellow:"#ffee66", green:"#77ff77" };
   const DIR = { north:[0,-1], east:[1,0], south:[0,1], west:[-1,0] };
   let canvas, ctx;
+  let recoilStart = -1;
+  let animationQueued = false;
+  let currentState = null, currentHost = null;
+  const RECOIL_MS = 260;
+  function recoil() {
+    recoilStart = performance.now();
+  }
 
   function setup(host) {
     if (!canvas || canvas.parentElement !== host) {
@@ -228,6 +235,59 @@
     ctx.restore();
   }
 
+  function drawWeapon(state) {
+    const aiming=Boolean(state.aiming);
+    const elapsed=performance.now()-recoilStart;
+    const firing=elapsed>=0&&elapsed<RECOIL_MS;
+    const phase=firing?elapsed/RECOIL_MS:1;
+    const kick=firing?Math.sin(Math.PI*phase)*(1-phase)*12:0;
+    // Kept intentionally blocky: silhouette, hand, and an uncomplicated muzzle.
+    const x=aiming?W*.50:W*.79;
+    const y=aiming?H-12:H+17;
+    ctx.save();
+    ctx.translate(x+(firing?kick*.28:0),y+kick);
+    ctx.rotate((aiming?0:.22)+(firing?-.10*Math.sin(Math.PI*phase):0));
+    ctx.lineJoin="miter";
+    ctx.lineWidth=2;
+    ctx.strokeStyle="#111714";
+    // Hand / wrist, rendered as a solid foreground shape.
+    ctx.fillStyle="#827769";
+    ctx.beginPath();
+    ctx.moveTo(12,5);ctx.lineTo(32,7);ctx.lineTo(47,30);
+    ctx.lineTo(12,30);ctx.lineTo(3,17);ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle="#a0927e";
+    ctx.fillRect(8,-3,22,15);
+    ctx.strokeRect(8,-3,22,15);
+    // Rectangular grip and slide, with a sharply outlined barrel.
+    ctx.fillStyle="#2d3433";
+    ctx.beginPath();
+    ctx.moveTo(-9,-12);ctx.lineTo(17,-12);ctx.lineTo(15,14);
+    ctx.lineTo(2,20);ctx.lineTo(-8,9);ctx.closePath();
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle="#414b4a";
+    ctx.fillRect(-14,-51,27,43);
+    ctx.strokeRect(-14,-51,27,43);
+    ctx.fillStyle="#667271";
+    ctx.fillRect(-14,-51,27,5);
+    ctx.fillStyle="#171e1d";
+    ctx.fillRect(-5,-56,10,6);
+    ctx.fillStyle="#202a28";
+    ctx.fillRect(-6,-49,12,31);
+    ctx.strokeStyle="#91a09b";
+    ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(-13,-44);ctx.lineTo(-13,-13);ctx.stroke();
+    if(firing&&phase<.26) {
+      const flare=1-phase/.26;
+      ctx.fillStyle="#e7d49a";
+      ctx.beginPath();
+      ctx.moveTo(0,-59);ctx.lineTo(-8*flare,-65-14*flare);
+      ctx.lineTo(0,-69-20*flare);ctx.lineTo(8*flare,-65-14*flare);
+      ctx.closePath();ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function render(state, host) {
     if(!setup(host)) return;
     const forward=DIR[state.player.dir]||DIR.north;
@@ -240,6 +300,17 @@
     state.enemies.forEach(e=>{if(isVisible(e.x,e.y))objects.push({type:"enemy",x:e.x,y:e.y,enemy:e});});
     objects.sort((a,b)=>(b.x-state.player.x)**2+(b.y-state.player.y)**2-((a.x-state.player.x)**2+(a.y-state.player.y)**2));
     objects.forEach(obj=>drawSprite(state,obj,forward,right,wallData));
+    drawWeapon(state);
+    currentState=state;
+    currentHost=host;
+    const elapsed=performance.now()-recoilStart;
+    if(elapsed<RECOIL_MS && elapsed>=0 && !animationQueued) {
+      animationQueued=true;
+      requestAnimationFrame(()=>{
+        animationQueued=false;
+        if(currentState&&currentHost)render(currentState,currentHost);
+      });
+    }
   }
-  window.ASCIIHordeRaycaster={render};
+  window.ASCIIHordeRaycaster={render,recoil};
 })();
