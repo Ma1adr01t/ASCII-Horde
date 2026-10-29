@@ -1788,20 +1788,25 @@ function lerp(a, b, t) {
 }
 
 function renderMiniMap() {
-  const origin = miniMapOrigin();
-  const rows = [];
-
-  for (let vy = 0; vy < MINI_HEIGHT; vy++) {
-    const row = [];
-
-    for (let vx = 0; vx < MINI_WIDTH; vx++) {
-      row.push(renderMapCell(origin.x + vx, origin.y + vy));
+  const origin=miniMapOrigin(),size=5;
+  let shapes='<rect width="'+(MINI_WIDTH*size)+'" height="'+(MINI_HEIGHT*size)+'" fill="#080b09"/>';
+  const colors={D:"#e4e8df",E:"#f3e687",C:"#d9c1a3",a:"#a8ddf1"};
+  for(let vy=0;vy<MINI_HEIGHT;vy++)for(let vx=0;vx<MINI_WIDTH;vx++){
+    const x=origin.x+vx,y=origin.y+vy;
+    const c=renderMapCell(x,y),px=vx*size,py=vy*size;
+    if(c==="#")shapes+='<rect x="'+px+'" y="'+py+'" width="5" height="5" fill="#617367"/>';
+    else if(c===" ")shapes+='<rect x="'+px+'" y="'+py+'" width="5" height="5" fill="#1b2c21"/>';
+    else if(c==="."||c===",")shapes+='<rect x="'+(px+2)+'" y="'+(py+2)+'" width="1" height="1" fill="#28362b"/>';
+    else if(c==="^"||c==="v"||c==="<"||c===">"){
+      shapes+='<rect x="'+px+'" y="'+py+'" width="5" height="5" fill="#142819"/>';
+      const point=c==="^"?"2,0 0,4 4,4":c==="v"?"0,0 4,0 2,4":c==="<"?"0,2 4,0 4,4":"0,0 4,2 0,4";
+      shapes+='<polygon points="'+point.split(" ").map(q=>{const v=q.split(",");return (px+Number(v[0]))+","+(py+Number(v[1]));}).join(" ")+'" fill="#87f49a"/>';
+    }else{
+      const color=colors[c]||"#f28b82";
+      shapes+='<rect x="'+(px+1)+'" y="'+(py+1)+'" width="3" height="3" fill="'+color+'"/>';
     }
-
-    rows.push(row.join(""));
   }
-
-  el.miniMap.textContent = rows.join("\n");
+  el.miniMap.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+(MINI_WIDTH*size)+' '+(MINI_HEIGHT*size)+'" aria-label="Dungeon minimap" role="img">'+shapes+'</svg>';
 }
 
 function renderMapCell(x, y) {
@@ -1854,7 +1859,12 @@ function renderInventory() {
     return `<div class="inventory-row"><span>${escapeHtml(label)}</span>${button}</div>`;
   }).join("");
 
-  el.inventory.innerHTML = `<strong>${escapeHtml(keyText)}</strong>${rows || `<div class="inventory-row"><span>No carried items</span></div>`}`;
+  el.inventory.innerHTML = rows || "";
+  const keyHud=document.getElementById("key-hud");
+  if(keyHud){
+    keyHud.textContent=game.keys.length ? "Keys: "+game.keys.map(titleColor).join(", ") : "";
+    keyHud.hidden=!game.keys.length;
+  }
 }
 
 function setup() {
