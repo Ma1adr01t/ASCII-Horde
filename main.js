@@ -1028,6 +1028,9 @@ function tryShootAt(x, y) {
 
     game.shots--;
     game.turn++;
+    if (window.ASCIIHordeRaycaster && window.ASCIIHordeRaycaster.recoil) {
+      window.ASCIIHordeRaycaster.recoil();
+    }
 
     if (Math.random() < MISS_CHANCE) {
       addLog("Your shot snaps wide in the dark.");
