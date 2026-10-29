@@ -246,6 +246,7 @@
       .left { grid-area: left; }
       .right { grid-area: right; }
 
+      .strafe-control { font-size: 12px; min-height: 34px; }
       .actions {
         display: grid;
         grid-template-columns: repeat(2, 82px);
@@ -404,7 +405,7 @@
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: canvas-raycasting-preview-1</div>
+        <div id="build" class="build">Build: canvas-raycasting-preview-2</div>
       </header>
 
       <section class="hud" aria-live="polite">
@@ -453,6 +454,8 @@
           <button data-dir="left" class="btn dir left" type="button">Turn L</button>
           <button data-dir="right" class="btn dir right" type="button">Turn R</button>
           <button data-dir="down" class="btn dir down" type="button">Back</button>
+          <button data-dir="strafe-left" class="btn strafe-control" type="button">Strafe L</button>
+          <button data-dir="strafe-right" class="btn strafe-control" type="button">Strafe R</button>
         </div>
 
         <div class="actions">
@@ -467,7 +470,7 @@
 
       <section class="legend">
         <p>
-          Forward/Back move by facing · Left/Right turn ·
+          W/S move · A/D turn · Q/E strafe ·
           <strong>H/h</strong> enemy · <strong>D</strong> door ·
           <strong>C</strong> chest · <strong>E</strong> exit
         </p>
