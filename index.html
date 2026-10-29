@@ -165,6 +165,19 @@
       .fp-enemy-critical { stroke: #ff5555; fill: #ff5555; }
       .fp-ammo { stroke: #99ddff; fill: #99ddff; }
 
+      .viewport-stack { position: relative; width: 100%; isolation: isolate; }
+      .viewport-map {
+        position: absolute;
+        top: 11px;
+        right: 11px;
+        z-index: 4;
+        margin: 0 !important;
+        background: rgba(0,0,0,.76) !important;
+        border-color: rgba(115,185,115,.55) !important;
+        box-shadow: 0 1px 6px rgba(0,0,0,.55);
+        pointer-events: none;
+        opacity: .88;
+      }
       .mini-map {
         display: block;
         width: min-content;
@@ -347,9 +360,12 @@
         }
 
         .mini-map {
-          font-size: 9px;
-          padding: 4px;
-          margin-top: 4px;
+          font-size: 7px;
+          padding: 3px;
+          margin-top: 0;
+          top: 8px;
+          right: 8px;
+          line-height: 1;
         }
 
         .message-log {
@@ -408,7 +424,7 @@
     <main class="game-shell">
       <header class="title-block">
         <h1>ASCII Horde</h1>
-        <div id="build" class="build">Build: canvas-raycasting-preview-3</div>
+        <div id="build" class="build">Build: canvas-raycasting-preview-9</div>
       </header>
 
       <section class="hud" aria-live="polite">
@@ -422,8 +438,10 @@
       </section>
 
       <section class="view-wrap" aria-label="First-person dungeon view">
-        <div id="first-person-view" class="first-person-view"></div>
-        <pre id="mini-map" class="mini-map" aria-label="Memory map"></pre>
+        <div class="viewport-stack">
+          <div id="first-person-view" class="first-person-view"></div>
+          <pre id="mini-map" class="mini-map viewport-map" aria-label="Memory map"></pre>
+        </div>
 
         <div id="chest-overlay" class="overlay hidden" aria-live="assertive">
           <div class="modal">
