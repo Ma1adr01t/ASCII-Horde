@@ -64,9 +64,9 @@
         const fx=wx-tileX,fy=wy-tileY;
         const seam=Math.min(fx,fy,1-fx,1-fy);
         const checker=(tileX+tileY)&1;
-        const fog=Math.max(.20,1-rowDist/(MAX_DISTANCE+2));
-        const base=ceiling?(checker?18:20):(checker?31:35);
-        const seamEffect=seam < Math.min(.025,.0035*rowDist) ? (ceiling?8:12) : 0;
+        const fog=Math.max(.16,1-rowDist/(MAX_DISTANCE+1));
+        const base=ceiling?(checker?17:19):(checker?28:39);
+        const seamEffect=seam < Math.min(.022,.003*rowDist) ? (ceiling?3:6) : 0;
         const shade=Math.round((base+seamEffect)*fog+5);
         const i=(y*W+x)*4;
         pixels[i]=shade;
@@ -105,14 +105,14 @@
       }
       if(hit.kind==="door"||hit.kind==="exit") {
         const color=hit.kind==="exit"?(COLORS[state.exit.color]||"#bbb")
-          :hit.door.locked?(COLORS[hit.door.color]||"#bbb"):"#989898";
-        const frameL=.24, frameR=.76, lintel=.16;
+          :hit.door.locked?(COLORS[hit.door.color]||"#bbb"):"#e5e5e5";
+        const frameL=.21, frameR=.79, lintel=.14;
         const isOpening=fraction>frameL&&fraction<frameR;
         const top=y0+height*lintel;
         if(isOpening) {
           const locked=hit.kind==="exit"||hit.door.locked;
           // Dark doorway cavity, closed panel when locked; open passage when unlocked.
-          ctx.fillStyle=locked?"#272b29":"#050808";
+          ctx.fillStyle=locked?"#343936":"#101713";
           ctx.fillRect(col,top,1,y1-top);
           const border=(fraction<frameL+.028||fraction>frameR-.028);
           if(border) {
@@ -164,14 +164,14 @@
     if(!visibleColumns){ctx.restore();return;}
     ctx.clip();
     // Opaque solid silhouettes and ground contact shadow anchors every pickup or enemy to the floor.
-    ctx.fillStyle="#030403";
-    ctx.fillRect(left-Math.max(1,w*.1),Math.round(floor)-3,Math.max(2,w*1.2),3);
+    ctx.fillStyle="#050705";
+    ctx.fillRect(left-Math.max(2,w*.18),Math.round(floor)-3,Math.max(3,w*1.36),Math.max(2,4/depth));
     ctx.strokeStyle="rgba(0,0,0,.65)";
     ctx.lineWidth=Math.max(1,1.6/depth);
     if(obj.type==="chest") {
       const col=obj.locked?(COLORS[obj.color]||"#aaa"):"#b3b3b3";
-      ctx.fillStyle="#303030";ctx.fillRect(left,top,w,h);
-      ctx.fillStyle="#474747";ctx.fillRect(left,top,w,Math.max(2,h*.24));
+      ctx.fillStyle="#383838";ctx.fillRect(left,top,w,h);
+      ctx.fillStyle="#555555";ctx.fillRect(left,top,w,Math.max(2,h*.24));
       ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,2/depth);ctx.strokeRect(left,top,w,h);
       ctx.fillStyle=col;ctx.fillRect(sx-1,top+h*.40,2,Math.max(2,h*.28));
     } else if(obj.type==="ammo") {
