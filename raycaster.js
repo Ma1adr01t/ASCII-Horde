@@ -30,7 +30,7 @@
     const sx = dx < 0 ? -1 : 1, sy = dy < 0 ? -1 : 1;
     let sideX = (dx < 0 ? ox-x : x+1-ox)*ddx;
     let sideY = (dy < 0 ? oy-y : y+1-oy)*ddy;
-    let dist = MAX_DISTANCE, side = 0, hit = false;
+    let dist = MAX_DISTANCE, side = 0, hit = false, kind = "wall", door = null;
     for (let i=0;i<32;i++) {
       if (sideX < sideY) {
         dist = sideX; sideX += ddx; x += sx; side = 0;
@@ -38,12 +38,15 @@
         dist = sideY; sideY += ddy; y += sy; side = 1;
       }
       if (dist > MAX_DISTANCE) break;
+      door = state.doors.find(d => d.x === x && d.y === y);
+      if (door) { hit = true; kind = "door"; break; }
+      if (state.exit.x === x && state.exit.y === y) { hit = true; kind = "exit"; break; }
       if (x<0 || y<0 || x>=72 || y>=40 || state.walls.has(x+","+y)) {
         hit = true;
         break;
       }
     }
-    return {dist:Math.max(0.06,dist),side,hit,x,y};
+    return {dist:Math.max(0.06,dist),side,hit,x,y,kind,door};
   }
 
   function drawWalls(state, forward, right) {
@@ -74,57 +77,84 @@
         ctx.fillStyle="rgba(205,220,205,"+(0.65*fog)+")";
         ctx.fillRect(col,y0,1,y1-y0);
       }
+      if (hit.kind === "door" || hit.kind === "exit") {
+        // Draw a solid wall with a centered, recessed door aperture.
+        const fraction = hitCoord-Math.floor(hitCoord);
+        const aperture = Math.abs(fraction-0.5)<0.26;
+        const top = y0 + height*0.14;
+        if(aperture && y1>top) {
+          const openingColor = hit.kind==="exit"
+            ? COLORS[state.exit.color]
+            : hit.door.locked ? COLORS[hit.door.color] : "#777777";
+          ctx.fillStyle = "#080a09";
+          ctx.fillRect(col,top,1,y1-top);
+          if (Math.abs(fraction-0.5)>0.235) {
+            ctx.fillStyle=openingColor;
+            ctx.fillRect(col,top,1,y1-top);
+          } else if(hit.door && hit.door.locked) {
+            ctx.fillStyle="#202322";
+            ctx.fillRect(col,top+3,1,y1-top-3);
+          }
+          if(Math.abs(top-Math.round(top))<=0.5) {
+            ctx.fillStyle=openingColor;
+            ctx.fillRect(col,top,1,Math.max(1,3/hit.dist));
+          }
+        }
+      }
     }
     return {depths,projection,ox,oy};
   }
 
-  function drawSprite(state, obj, forward, right, wallData) {
-    const vx=obj.x+0.5-wallData.ox, vy=obj.y+0.5-wallData.oy;
+  function drawSprite(state, obj, forward, right, data) {
+    const vx=obj.x+0.5-data.ox, vy=obj.y+0.5-data.oy;
     const depth=vx*forward[0]+vy*forward[1];
     const lateral=vx*right[0]+vy*right[1];
     if(depth<=0.15 || depth>MAX_DISTANCE) return;
-    const sx=W/2+wallData.projection*lateral/depth;
-    const size=wallData.projection/depth;
-    if(sx+size<0 || sx-size>W) return;
-    const middle=Math.max(0,Math.min(W-1,Math.round(sx)));
-    if(depth>wallData.depths[middle]+0.15) return;
-    const fog=Math.max(0.30,1-depth/(MAX_DISTANCE+1));
-    ctx.save();ctx.globalAlpha=fog;
-    if(obj.type==="door" || obj.type==="exit") {
-      const color=COLORS[obj.color]||"#aaaaaa";
-      const w=size*0.48, h=size*0.83;
-      const x=sx-w/2,y=H/2+size/2-h;
-      ctx.fillStyle=obj.type==="exit"?"#080f08":"#151515";
-      ctx.fillRect(x,y,w,h);
-      ctx.strokeStyle=color;ctx.lineWidth=Math.max(1,3/depth);
-      ctx.strokeRect(x,y,w,h);
-      ctx.beginPath();ctx.arc(x+w*0.8,y+h*0.55,Math.max(0.8,2/depth),0,Math.PI*2);
-      ctx.fillStyle=color;ctx.fill();
-      if(obj.type==="exit") {ctx.strokeRect(x+w*.13,y+h*.13,w*.74,h*.74);}
-    } else if(obj.type==="chest") {
-      const color=obj.locked?(COLORS[obj.color]||"#aaaaaa"):"#aaaaaa";
-      const w=size*.48,h=size*.24;
-      const x=sx-w/2,y=H/2+size*.46-h;
-      ctx.fillStyle="#262626";ctx.fillRect(x,y,w,h);
-      ctx.strokeStyle=color;ctx.lineWidth=Math.max(1,2/depth);
-      ctx.strokeRect(x,y,w,h);
-      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+w*.12,y-h*.18);ctx.lineTo(x+w*.88,y-h*.18);ctx.lineTo(x+w,y);ctx.stroke();
+    const sx=W/2+data.projection*lateral/depth;
+    const size=data.projection/depth;
+    const w=size*(obj.type==="enemy" ? .38 : obj.type==="chest" ? .50 : .18);
+    const h=size*(obj.type==="enemy" ? .72 : obj.type==="chest" ? .31 : .17);
+    const floor=H/2+size*.5;
+    const left=Math.round(sx-w/2), top=Math.round(floor-h), rightEdge=Math.ceil(sx+w/2);
+    if(rightEdge<0||left>=W) return;
+
+    // Clip each object against the actual wall-depth buffer, column by column.
+    ctx.save();
+    ctx.beginPath();
+    let visibleColumns=0;
+    for(let x=Math.max(0,left);x<Math.min(W,rightEdge);x++) {
+      if(depth<data.depths[x]+.05) {
+        ctx.rect(x,Math.max(0,top-4),1,Math.min(H,Math.ceil(floor+3))-Math.max(0,top-4));
+        visibleColumns++;
+      }
+    }
+    if(!visibleColumns){ctx.restore();return;}
+    ctx.clip();
+    // A ground contact shadow anchors every pickup or enemy to the floor.
+    ctx.fillStyle="#020302";
+    ctx.fillRect(left,Math.round(floor)-2,Math.max(2,w),3);
+    if(obj.type==="chest") {
+      const col=obj.locked?(COLORS[obj.color]||"#aaa"):"#b3b3b3";
+      ctx.fillStyle="#303030";ctx.fillRect(left,top,w,h);
+      ctx.fillStyle="#474747";ctx.fillRect(left,top,w,Math.max(2,h*.24));
+      ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,2/depth);ctx.strokeRect(left,top,w,h);
+      ctx.fillStyle=col;ctx.fillRect(sx-1,top+h*.40,2,Math.max(2,h*.28));
     } else if(obj.type==="ammo") {
-      const w=size*.16,h=size*.12,y=H/2+size*.45-h;
-      ctx.fillStyle="#99ddff";ctx.fillRect(sx-w/2,y,w,h);
-      ctx.fillStyle="#325d77";ctx.fillRect(sx-w/2,y,w,h*.3);
+      ctx.fillStyle="#9bdcff";ctx.fillRect(left,top,w,h);
+      ctx.fillStyle="#35647a";ctx.fillRect(left,top,w,Math.max(1,h*.24));
     } else if(obj.type==="enemy") {
-      const w=size*.40,h=size*.72,x=sx-w/2,y=H/2+size*.46-h;
       const ratio=obj.enemy.hp/obj.enemy.maxHp;
       const color=ratio>.6?"#ff9999":ratio>.3?"#ffcc66":"#ff5555";
       ctx.fillStyle=color;
-      ctx.fillRect(x+w*.22,y+h*.25,w*.56,h*.55);
-      ctx.fillRect(x+w*.3,y,w*.4,h*.32);
-      ctx.fillRect(x+w*.18,y+h*.8,w*.22,h*.2);
-      ctx.fillRect(x+w*.6,y+h*.8,w*.22,h*.2);
-      ctx.fillStyle="#000";ctx.fillRect(x+w*.39,y+h*.12,w*.08,h*.05);ctx.fillRect(x+w*.56,y+h*.12,w*.08,h*.05);
+      ctx.fillRect(left+w*.23,top+h*.25,w*.54,h*.57);
+      ctx.fillRect(left+w*.3,top,w*.4,h*.33);
+      ctx.fillRect(left+w*.18,top+h*.8,w*.22,h*.2);
+      ctx.fillRect(left+w*.6,top+h*.8,w*.22,h*.2);
+      ctx.fillStyle="#111";
+      ctx.fillRect(left+w*.38,top+h*.11,Math.max(1,w*.09),Math.max(1,h*.05));
+      ctx.fillRect(left+w*.57,top+h*.11,Math.max(1,w*.09),Math.max(1,h*.05));
       if(state.selectedTargetKey===obj.x+","+obj.y) {
-        ctx.strokeStyle="#fff";ctx.lineWidth=Math.max(1,2/depth);ctx.strokeRect(x-2,y-2,w+4,h+4);
+        ctx.strokeStyle="#fff";ctx.lineWidth=Math.max(1,2/depth);ctx.strokeRect(left-2,top-2,w+4,h+4);
       }
     }
     ctx.restore();
@@ -137,8 +167,6 @@
     const wallData=drawWalls(state,forward,right);
     const objects=[];
     const isVisible=(x,y)=>state.visible.has(x+","+y);
-    state.doors.forEach(d=>{if(isVisible(d.x,d.y)) objects.push({type:"door",x:d.x,y:d.y,color:d.locked?d.color:null});});
-    if(isVisible(state.exit.x,state.exit.y))objects.push({type:"exit",...state.exit});
     state.chests.forEach(c=>{if(isVisible(c.x,c.y))objects.push({type:"chest",x:c.x,y:c.y,locked:c.locked,color:c.lockColor});});
     state.pickups.forEach(p=>{if(isVisible(p.x,p.y))objects.push({type:"ammo",x:p.x,y:p.y});});
     state.enemies.forEach(e=>{if(isVisible(e.x,e.y))objects.push({type:"enemy",x:e.x,y:e.y,enemy:e});});
