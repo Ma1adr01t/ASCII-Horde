@@ -924,10 +924,11 @@ function moveBy(dx, dy) {
     game.aiming = false;
 
     if (!inBounds(nx, ny) || game.walls.has(p)) {
-      addLog("A wall blocks your way.");
+      return false; // Collision is obvious in the first-person viewport.
       return false;
     }
 
+    if(window.ASCIIHordeRaycaster && window.ASCIIHordeRaycaster.isPropAt(game,nx,ny))return false;
     const door = doorAt(nx, ny);
 
     if (door && door.locked) {
@@ -1033,10 +1034,12 @@ function tryShootAt(x, y) {
     }
 
     if (Math.random() < MISS_CHANCE) {
+      window.ASCIIHordeRaycaster?.feedback("MISS");
       addLog("Your shot snaps wide in the dark.");
       return true;
     }
 
+    window.ASCIIHordeRaycaster?.feedback("HIT");
     foe.hp -= game.shotDamage;
 
     if (foe.hp > 0) {
@@ -1206,6 +1209,7 @@ function applyDamage(damage) {
   }
 
   if (remaining > 0) {
+    window.ASCIIHordeRaycaster?.damage();
     game.player.hp -= remaining;
     const condition = conditionLabel(healthCondition(Math.max(0, game.player.hp), game.player.maxHp)).toLowerCase();
     addLog(`You take ${remaining} damage. You are ${condition}.`);
